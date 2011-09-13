@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  Text1
+  <div a="a&amp;b&lt;c&gt;d&quot;e&apos;f">Text2</div>
+  Text3
+  <div id="a">
+    <div id="b">
+    </div>
+  </div>
+  <br/>
+  text4
+</config>
