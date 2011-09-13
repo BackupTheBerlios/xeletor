@@ -192,7 +192,7 @@ type
   Protected
     Function GetFieldValue(Index : Integer) : String; virtual;
     Procedure SetFieldValue(Index : Integer; Value : String); virtual;
-    procedure ParseFirstHeaderLine(const line: String);virtual;
+    procedure ParseFirstHeaderLine(const {%H-}line: String);virtual;
     Procedure ParseCookies; virtual;
   public
     constructor Create; virtual;
@@ -375,9 +375,9 @@ type
   Public
     Constructor Create(AOwner : TComponent); override;
     // Init session from request.
-    Procedure InitSession(ARequest : TRequest; OnNewSession,OnExpired : TNotifyEvent); virtual;
+    Procedure InitSession({%H-}ARequest : TRequest; {%H-}OnNewSession,{%H-}OnExpired : TNotifyEvent); virtual;
     // Init response from session (typically, add cookie to response).
-    Procedure InitResponse(AResponse : TResponse); virtual;
+    Procedure InitResponse({%H-}AResponse : TResponse); virtual;
     // Update response from session (typically, change cookie to response and write session data).
     Procedure UpdateResponse(AResponse : TResponse); virtual; Abstract;
     // Remove variable from list of variables.
@@ -419,7 +419,6 @@ Resourcestring
   SErrInternalUploadedFileError = 'Internal uploaded file configuration error';
   SErrNoSuchUploadedFile        = 'No such uploaded file : "%s"';
   SErrUnknownCookie             = 'Unknown cookie: "%s"';
-  SErrUnsupportedContentType    = 'Unsupported content type: "%s"';
   SErrNoRequestMethod           = 'No REQUEST_METHOD passed from server.';
   SErrInvalidRequestMethod      = 'Invalid REQUEST_METHOD passed from server.';
 

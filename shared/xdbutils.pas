@@ -13,6 +13,7 @@ uses
   Classes, SysUtils, AVL_Tree, CodeToolsStructs, FileProcs;
 
 type
+  PFPList = ^TFPList;
 
   { TXDBAVLTreeNodeMemManager }
 

@@ -43,6 +43,9 @@ type
     property Current: TXDBNode read FCurrent;
   end;
 
+  TXDBNodeIterateEvent = procedure(Node: TXDBNode;
+                                   var Abort: boolean) of object;
+
   { TXDBNode - optimized for memory size }
 
   TXDBNode = class
@@ -54,6 +57,8 @@ type
 
     // name
     function GetName: string; virtual;
+    function CompareName(aName: PChar): integer; virtual;
+    function GetSubPath: string;
     function GetPath(WithRoot: boolean = false): string;
 
     // children
@@ -81,8 +86,13 @@ type
     function GetFullFilename: string;
 
     // search
-    function FindChildWithPath(const Path: String): TXDBNode;
-    function FindChildWithPath(Path: PChar): TXDBNode; // e.g. A/B/*/C//D, a /*/ means one arbitrary node, // means any number of nodes in between
+    function FindChildrenWithPath(const Path: String;
+           const OnIterate: TXDBNodeIterateEvent = nil): TXDBNode;
+    function FindChildrenWithPath(Path: PChar;
+           const OnIterate: TXDBNodeIterateEvent = nil): TXDBNode; // e.g. A/B/*/C//D, a /*/ means one arbitrary node, // means any number of nodes in between
+
+    // conversion
+    procedure WriteToStream(s: TStream; Level: integer = 0);
 
     procedure CheckConsistency; virtual;
   end;
@@ -103,6 +113,7 @@ type
     AttributeCount: integer;
     destructor Destroy; override;
     function GetName: string; override;
+    function CompareName(aName: PChar): integer; override;
     function IndexOfAttribute(const AttributeName: string): integer; override;
     function GetAttribute(const AttributeName: string): string; override;
   end;
@@ -168,7 +179,7 @@ type
     constructor Create(aFilename: string);
     destructor Destroy; override;
     procedure CreateTreeFromXML;
-    procedure WriteToStream(s: TStream; Node: TXDBNode);
+    procedure WriteToStream(s: TStream; Level: integer = 0);
     procedure ClearXMLDoc;
   end;
 
@@ -184,6 +195,13 @@ type
     function MoveNext: boolean;
     property Current: TXDBFile read GetCurrent;
   end;
+
+  TXDBFindNodesFlag = (
+    xfnfFindFirst, // stop after first hit
+    xfnfContinueInNextFile, // on abort continue search in next file
+    xfnfDoNotCollect // do not add nodes to NodeList
+    );
+  TXDBFindNodesFlags = set of TXDBFindNodesFlag;
 
   { TXDBDirectory }
 
@@ -202,7 +220,9 @@ type
     function GetEnumerator: TXDBDirectoryEnumerator;
     procedure ListFiles(DocPath: string; var FileList: TFPList;
                         Flags: TXDBListFlags);
-    procedure FindFirstNodes(NodePath: string; var NodeList: TFPList);
+    procedure FindNodes(NodePath: string; var NodeList: TFPList;
+      Flags: TXDBFindNodesFlags = [];
+      const OnIterate: TXDBNodeIterateEvent = nil);
   end;
 
   { TXDBRootDirectory }
@@ -443,6 +463,35 @@ var
   IndexItem2: TXPathIndexItem absolute Item2;
 begin
   Result:=CompareStr(IndexItem1.Key,IndexItem2.Key);
+end;
+
+type
+
+  { TFindNodeHandler }
+
+  TFindNodeHandler = class
+  public
+    Nodes: PFPList;
+    Abort: boolean;
+    Found: boolean;
+    Handler: TXDBNodeIterateEvent;
+    procedure OnIterate(Node: TXDBNode; var TheAbort: boolean);
+  end;
+
+{ TFindNodeHandler }
+
+procedure TFindNodeHandler.OnIterate(Node: TXDBNode; var TheAbort: boolean);
+begin
+  //debugln(['TFindNodeHandler.OnIterate ',Node.GetPath]);
+  Found:=true;
+  if Nodes<>nil then begin
+    if Nodes^=nil then
+      Nodes^:=TFPList.Create;
+    Nodes^.Add(Node);
+  end;
+  if Abort then TheAbort:=Abort;
+  if Assigned(Handler) then
+    Handler(Node,TheAbort);
 end;
 
 { TXDBRootNode }
@@ -694,83 +743,244 @@ begin
     Result:=TXDBRootNode(Root).Doc.GetFullFilename;
 end;
 
-function TXDBNode.FindChildWithPath(const Path: String): TXDBNode;
+function TXDBNode.FindChildrenWithPath(const Path: String;
+  const OnIterate: TXDBNodeIterateEvent): TXDBNode;
 begin
-  Result:=FindChildWithPath(PChar(Path));
+  Result:=FindChildrenWithPath(PChar(Path),OnIterate);
 end;
 
-function TXDBNode.FindChildWithPath(Path: PChar): TXDBNode;
+function TXDBNode.FindChildrenWithPath(Path: PChar;
+  const OnIterate: TXDBNodeIterateEvent): TXDBNode;
 { A/B/*/C//D
 }
+
+  procedure RaiseError;
+  begin
+    raise Exception.Create('TXDBNode.FindChildrenWithPath: invalid syntax: '+Path);
+  end;
+
+  function NodeFound(var Node: TXDBNode): boolean;
+  var
+    Abort: boolean;
+  begin
+    if Assigned(OnIterate) then begin
+      Abort:=false;
+      OnIterate(Node,Abort);
+      if Abort then exit(true);
+      Node:=nil;
+      Result:=false;
+    end else begin
+      Result:=true;
+    end;
+  end;
+
 var
   l: Integer;
   Child: TXDBNode;
   i: Integer;
   Last: TXDBNode;
+  NameStart: PChar;
 begin
   Result:=nil;
   if (Path=nil) or (Path^=#0) then exit;
   l:=GetXMLNameLength(Path);
-  //debugln([GetIndentStr(GetLevel*2),'TXDBNode.FindChildWithPath Current=',GetPath,' Path=',Path,' Sub=',GetXMLName(Path)]);
+  //debugln([Space(GetLevel*2),'TXDBNode.FindChildWithPath Current=',GetPath,'[',IndexInParent,'] Path=',Path,' Sub=',GetXMLName(Path)]);
   if l>0 then begin
     // search node with name
-    Result:=FindChildWithName(Path);
+    NameStart:=Path;
     inc(Path,l);
-    if Path^=#0 then begin
-      exit;
+    if not (Path^ in [#0,'/']) then
+      RaiseError;
+    for i:=0 to GetChildCount-1 do begin
+      Child:=GetChild(i);
+      //debugln(['TXDBNode.FindChildrenWithPath NameStart=',GetXMLName(NameStart),' Child=',Child.GetName,' Cmp=',Child.CompareName(NameStart)]);
+      if Child.CompareName(NameStart)<>0 then continue;
+      if Path^=#0 then begin
+        Result:=Child;
+        if NodeFound(Result) then exit;
+      end else begin
+        Result:=Child.FindChildrenWithPath(Path,OnIterate);
+        if Result<>nil then exit;
+      end;
     end;
-    if Path^<>'/' then begin
-      // invalid syntax
-      exit(nil);
-    end;
-    inc(Path);
-    Result:=Result.FindChildWithPath(Path);
   end else if Path^='*' then begin
     inc(Path);
     if Path^=#0 then begin
       // e.g. A/*
-      // return first child
-      Result:=GetFirstChild;
-      exit;
+      // return all children
+      for i:=0 to GetChildCount-1 do begin
+        Result:=GetChild(i);
+        if NodeFound(Result) then exit;
+      end;
     end else if (Path^<>'/') then begin
       // invalid syntax, e.g. *A
-      exit;
+      RaiseError;
     end else if (Path[1]='/') then begin
       // invalid syntax, e.g. *//
-      exit;
-    end;
-    //  */...
-    // test all children
-    inc(Path);
-    for i:=0 to GetChildCount-1 do begin
-      //debugln([GetIndentStr(GetLevel*2),'TXDBNode.FindChildWithPath ',i,'/',GetChildCount]);
-      Result:=GetChild(i).FindChildWithPath(Path);
-      if Result<>nil then exit;
+      RaiseError;
+    end else begin
+      //  */...
+      // test all children
+      inc(Path);
+      for i:=0 to GetChildCount-1 do begin
+        //debugln([GetIndentStr(GetLevel*2),'TXDBNode.FindChildWithPath ',i,'/',GetChildCount]);
+        Result:=GetChild(i).FindChildrenWithPath(Path,OnIterate);
+        if Result<>nil then exit;
+      end;
     end;
   end else if (Path^='/') and (Path[1]='/') then begin
+    //debugln(['TXDBNode.FindChildrenWithPath //']);
     inc(Path,2);
-    if Path^=#0 then begin
-      // e.g. A//
-      // return first child
-      Result:=GetFirstChild;
-      exit;
-    end else if (Path^='/') or (Path^='*') then begin
+    if (Path^='/') or (Path^='*') then begin
       // invalid syntax, e.g. /// or //*
-      exit;
+      RaiseError;
     end;
     // test all children and grand children
     Child:=GetNext;
     if Child<>nil then begin
       Last:=GetNextSkipChildren;
       while Child<>Last do begin
-        Result:=Child.FindChildWithPath(Path);
-        if Result<>nil then exit;
+        if Path^=#0 then begin
+          Result:=Child;
+          if NodeFound(Result) then exit;
+        end else begin
+          Result:=Child.FindChildrenWithPath(Path,OnIterate);
+          if Result<>nil then exit;
+        end;
         Child:=Child.GetNext;
       end;
     end;
   end else begin
     // invalid syntax
+    RaiseError;
   end;
+end;
+
+procedure TXDBNode.WriteToStream(s: TStream; Level: integer);
+
+  procedure w(const Value: string);
+  begin
+    //debugln(['TXDBNode.WriteToStream.w Value="',dbgstr(Value),'"']);
+    if Value='' then exit;
+    s.Write(Value[1],length(Value));
+  end;
+
+  procedure WriteAttrValue(const Value: string);
+  var
+    p: PChar;
+    StartPos: PChar;
+
+    procedure Flush;
+    begin
+      if p=StartPos then exit;
+      s.Write(StartPos^,p-StartPos);
+      StartPos:=p;
+    end;
+
+    procedure WriteSpecialChar(Value: PChar);
+    begin
+      Flush;
+      inc(p);
+      StartPos:=p;
+      s.Write(Value^,Strlen(Value));
+    end;
+
+  begin
+    w('"');
+    if Value<>'' then begin
+      p:=PChar(Value);
+      StartPos:=p;
+      while p^<>#0 do begin
+        case p^ of
+        '&': WriteSpecialChar('&amp;');
+        '<': WriteSpecialChar('&lt;');
+        '>': WriteSpecialChar('&gt;');
+        '''': WriteSpecialChar('&apos;');
+        '"': WriteSpecialChar('&quot;');
+        else inc(p);
+        end;
+      end;
+      Flush;
+    end;
+    w('"');
+  end;
+
+  procedure WriteNode(CurNode: TXDBNode; CurLevel: integer);
+  var
+    AttrNode: TXDBNodeWithAttributes;
+    i: Integer;
+    Attr: PXDBAttribute;
+    LeafNode: TXDBLeafNode;
+    TreeNode: TXDBTreeNode;
+    ChildNode: TXDBNode;
+    j: Integer;
+  begin
+    //debugln(['WriteNode ',DbgSName(CurNode)]);
+    if CurNode is TXDBNodeWithAttributes then begin
+      AttrNode:=TXDBNodeWithAttributes(CurNode);
+      if CurNode is TXDBLeafNode then begin
+        // text
+        LeafNode:=TXDBLeafNode(CurNode);
+        if LeafNode.Value<>'' then
+          w(LeafNode.Value);
+      end else begin
+        w('<');
+        w(AttrNode.Name);
+        if AttrNode.AttributeCount>0 then begin
+          for i:=0 to AttrNode.AttributeCount-1 do begin
+            Attr:=@AttrNode.Attributes[i];
+            w(' ');
+            w(Attr^.Name);
+            w('=');
+            WriteAttrValue(Attr^.Value);
+          end;
+        end;
+        if CurNode is TXDBTreeNode then begin
+          TreeNode:=TXDBTreeNode(CurNode);
+          if TreeNode.ChildCount=0 then
+            w('/>')
+          else begin
+            w('>');
+            for i:=0 to TreeNode.ChildCount-1 do begin
+              ChildNode:=TreeNode.Children[i];
+              if (not (ChildNode is TXDBLeafNode))
+              and ((i=0) or (not (TreeNode.Children[i-1] is TXDBLeafNode)))
+              then begin
+                // new line
+                w(#10);
+                for j:=0 to CurLevel do
+                  w('  ');
+              end;
+              WriteNode(ChildNode,CurLevel+1);
+            end;
+            w('</');
+            w(AttrNode.Name);
+            w('>');
+          end;
+        end else
+          w('/>');
+      end;
+    end;
+  end;
+
+var
+  RootNode: TXDBRootNode;
+  i: Integer;
+begin
+  //debugln(['TXDBNode.WriteToStream ',DbgSName(Node)]);
+  if Self is TXDBRootNode then begin
+    RootNode:=TXDBRootNode(Self);
+    //debugln(['TXDBNode.WriteToStream ',RootNode.ChildCount]);
+    if RootNode.ChildCount=0 then begin
+      for i:=0 to Level-1 do
+        w('  ');
+      w('<empty/>'#10);
+    end else begin
+      for i:=0 to RootNode.ChildCount-1 do
+        WriteNode(RootNode.Children[i],Level);
+    end;
+  end else
+    WriteNode(Self,Level);
 end;
 
 procedure TXDBNode.CheckConsistency;
@@ -792,17 +1002,32 @@ begin
   Result:='';
 end;
 
+function TXDBNode.CompareName(aName: PChar): integer;
+begin
+  if (aName=nil) or (aName^=#0) then
+    Result:=0
+  else
+    Result:=-1;
+end;
+
+function TXDBNode.GetSubPath: string;
+begin
+  Result:=GetName;
+  if (IndexInParent>0) or ((Parent<>nil) and (Parent.ChildCount>1)) then
+    Result:=Result+'['+IntToStr(IndexInParent)+']';
+end;
+
 function TXDBNode.GetPath(WithRoot: boolean): string;
 var
   Node: TXDBNode;
 begin
-  Result:=GetName;
+  Result:=GetSubPath;
   Node:=Self;
   repeat
     Node:=Node.Parent;
     if Node=nil then exit;
     if (not WithRoot) and (Node is TXDBRootNode) then exit;
-    Result:=Node.GetName+'/'+Result;
+    Result:=Node.GetSubPath+'/'+Result;
   until false;
 end;
 
@@ -880,6 +1105,11 @@ begin
   Result:=Name;
 end;
 
+function TXDBNodeWithAttributes.CompareName(aName: PChar): integer;
+begin
+  Result:=CompareXMLNames(aName,PChar(Name));
+end;
+
 function TXDBNodeWithAttributes.IndexOfAttribute(const AttributeName: string
   ): integer;
 begin
@@ -921,129 +1151,11 @@ begin
   Root.Doc:=Self;
 end;
 
-procedure TXDBDocument.WriteToStream(s: TStream; Node: TXDBNode);
-
-  procedure w(const Value: string);
-  begin
-    //debugln(['TXDBDocument.WriteToStream.w Value="',dbgstr(Value),'"']);
-    if Value='' then exit;
-    s.Write(Value[1],length(Value));
-  end;
-
-  procedure WriteAttrValue(const Value: string);
-  var
-    p: PChar;
-    StartPos: PChar;
-
-    procedure Flush;
-    begin
-      if p=StartPos then exit;
-      s.Write(StartPos^,p-StartPos);
-      StartPos:=p;
-    end;
-
-    procedure WriteSpecialChar(Value: PChar);
-    begin
-      Flush;
-      inc(p);
-      StartPos:=p;
-      s.Write(Value^,Strlen(Value));
-    end;
-
-  begin
-    w('"');
-    if Value<>'' then begin
-      p:=PChar(Value);
-      StartPos:=p;
-      while p^<>#0 do begin
-        case p^ of
-        '&': WriteSpecialChar('&amp;');
-        '<': WriteSpecialChar('&lt;');
-        '>': WriteSpecialChar('&gt;');
-        '''': WriteSpecialChar('&apos;');
-        '"': WriteSpecialChar('&quot;');
-        else inc(p);
-        end;
-      end;
-      Flush;
-    end;
-    w('"');
-  end;
-
-  procedure WriteNode(CurNode: TXDBNode; Level: integer);
-  var
-    AttrNode: TXDBNodeWithAttributes;
-    i: Integer;
-    Attr: PXDBAttribute;
-    LeafNode: TXDBLeafNode;
-    TreeNode: TXDBTreeNode;
-    ChildNode: TXDBNode;
-    j: Integer;
-  begin
-    //debugln(['WriteNode ',DbgSName(CurNode)]);
-    if CurNode is TXDBNodeWithAttributes then begin
-      AttrNode:=TXDBNodeWithAttributes(CurNode);
-      if CurNode is TXDBLeafNode then begin
-        // text
-        LeafNode:=TXDBLeafNode(CurNode);
-        if LeafNode.Value<>'' then
-          w(LeafNode.Value);
-      end else begin
-        w('<');
-        w(AttrNode.Name);
-        if AttrNode.AttributeCount>0 then begin
-          for i:=0 to AttrNode.AttributeCount-1 do begin
-            Attr:=@AttrNode.Attributes[i];
-            w(' ');
-            w(Attr^.Name);
-            w('=');
-            WriteAttrValue(Attr^.Value);
-          end;
-        end;
-        if CurNode is TXDBTreeNode then begin
-          TreeNode:=TXDBTreeNode(CurNode);
-          if TreeNode.ChildCount=0 then
-            w('/>')
-          else begin
-            w('>');
-            for i:=0 to TreeNode.ChildCount-1 do begin
-              ChildNode:=TreeNode.Children[i];
-              if (not (ChildNode is TXDBLeafNode))
-              and ((i=0) or (not (TreeNode.Children[i-1] is TXDBLeafNode)))
-              then begin
-                w(#10);
-                for j:=0 to Level do
-                  w('  ');
-              end;
-              WriteNode(ChildNode,Level+1);
-            end;
-            w('</');
-            w(AttrNode.Name);
-            w('>');
-          end;
-        end else
-          w('/>');
-      end;
-    end;
-  end;
-
-var
-  RootNode: TXDBRootNode;
-  i: Integer;
+procedure TXDBDocument.WriteToStream(s: TStream; Level: integer
+  );
 begin
-  //debugln(['TXDBDocument.WriteToStream ',DbgSName(Node)]);
-  if Node=nil then exit;
-  if Node is TXDBRootNode then begin
-    RootNode:=TXDBRootNode(Node);
-    //debugln(['TXDBDocument.WriteToStream ',RootNode.ChildCount]);
-    if RootNode.ChildCount=0 then
-      w('<empty/>')
-    else begin
-      for i:=0 to RootNode.ChildCount-1 do
-        WriteNode(RootNode.Children[i],0);
-    end;
-  end else
-    WriteNode(Node,0);
+  if Root<>nil then
+    Root.WriteToStream(s,Level);
 end;
 
 procedure TXDBDocument.ClearXMLDoc;
@@ -1148,18 +1260,19 @@ begin
   Search(Self);
 end;
 
-procedure TXDBDirectory.FindFirstNodes(NodePath: string; var NodeList: TFPList
-  );
+procedure TXDBDirectory.FindNodes(NodePath: string; var NodeList: TFPList;
+  Flags: TXDBFindNodesFlags; const OnIterate: TXDBNodeIterateEvent);
 var
   DocPath, XPath: string;
+  Handler: TFindNodeHandler;
 
   procedure Search(aFile: TXDBFile);
+  // returns true to abort any further search
   var
     ChildMightFit: boolean;
     SubFile: TXDBFile;
     Fits: Boolean;
     Doc: TXDBDocument;
-    Node: TXDBNode;
   begin
     if DocPath='' then begin
       Fits:=true;
@@ -1167,23 +1280,34 @@ var
     end else
       Fits:=aFile.CheckDocPath(DocPath,ChildMightFit);
     if (aFile is TXDBDirectory) and ChildMightFit then begin
-      for SubFile in TXDBDirectory(aFile) do
+      for SubFile in TXDBDirectory(aFile) do begin
         Search(SubFile);
+        if Handler.Found
+        and (xfnfFindFirst in Flags)
+        and (not (xfnfContinueInNextFile in Flags))
+        then exit;
+      end;
     end else if (aFile is TXDBDocument) and Fits then begin
       Doc:=TXDBDocument(aFile);
       if (Doc.Root<>nil) then begin
-        Node:=Doc.Root.FindChildWithPath(XPath);
-        if Node<>nil then begin
-          if NodeList=nil then NodeList:=TFPList.Create;
-          NodeList.Add(Node);
-        end;
+        Handler.Found:=false;
+        Doc.Root.FindChildrenWithPath(XPath,@Handler.OnIterate);
       end;
     end;
   end;
 
 begin
   SplitNodePath(NodePath,DocPath,XPath);
-  Search(Self);
+  Handler:=TFindNodeHandler.Create;
+  try
+    if not (xfnfDoNotCollect in Flags) then
+      Handler.Nodes:=@NodeList;
+    Handler.Abort:=xfnfFindFirst in Flags;
+    Handler.Handler:=OnIterate;
+    Search(Self);
+  finally
+    Handler.Free;
+  end;
 end;
 
 { TXDBFile }

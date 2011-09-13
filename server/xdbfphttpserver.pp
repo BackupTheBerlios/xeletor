@@ -20,7 +20,7 @@ unit xdbfphttpserver;
 interface
 
 uses
-  Classes, SysUtils, ssockets, xdbhttpdefs, Sockets;
+  Classes, SysUtils, ssockets, xdbhttpdefs;
 
 Const
   ReadBufLen = 4096;
@@ -64,7 +64,7 @@ Type
     function ReadString: String;
   Protected
     procedure ReadRequestContent(ARequest: TFPHTTPConnectionRequest); virtual;
-    procedure UnknownHeader(ARequest: TFPHTTPConnectionRequest; const AHeader: String); virtual;
+    procedure UnknownHeader({%H-}ARequest: TFPHTTPConnectionRequest; const {%H-}AHeader: String); virtual;
     Function ReadRequestHeaders : TFPHTTPConnectionRequest;
   Public
     Constructor Create(AServer : TFPCustomHTTPServer; ASocket : TSocketStream);
@@ -595,8 +595,6 @@ begin
 end;
 
 procedure TFPCustomHttpServer.CreateServerSocket;
-var
-  TrueValue: integer;
 begin
   FServer:=TInetServer.Create(FPort);
   FServer.MaxConnections:=-1;
@@ -604,8 +602,6 @@ begin
   FServer.OnConnect:=@DoConnect;
   FServer.QueueSize:=Self.QueueSize;
   FServer.Bind;
-  //Sockets.fpSetSockOpt(FServer.Socket, SOL_SOCKET, SO_REUSEADDR,
-  //                     @TrueValue, SizeOf(TrueValue));
   FServer.Listen;
   FServer.StartAccepting;
 end;

@@ -31,18 +31,12 @@
   ToDo:
     Update xml directory:
       - remove deleted files and directories
-      - register directory change handler
+      - register directory change handler (Linux: inotify)
     Use SingleWriteMultipleRead
-    iterate XPath
-    iterate DocPath
-    Iterate NodePath: [optional doc(DocPath)]XPath
-    Requests
-      listdocs:DocPath
-      nodes: node path
+    real XPath
     Index:
       simple: node path + sort for attributes
     Multirequests
-    return nodes
 }
 program xeletor;
 
@@ -57,7 +51,7 @@ uses
   xdblog, xdbcentral;
 
 const
-  Version = '0.3';
+  Version = '0.4';
 type
 
   { TXPath }
@@ -93,6 +87,9 @@ type
       var AResponse: TFPHTTPConnectionResponse;
       ExtendedFormat: boolean);
     procedure HandleRequestFindDocs(Path: string;
+      var ARequest: TFPHTTPConnectionRequest;
+      var AResponse: TFPHTTPConnectionResponse);
+    procedure HandleRequestFindNodes(Path: string;
       var ARequest: TFPHTTPConnectionRequest;
       var AResponse: TFPHTTPConnectionResponse);
     // Tests
@@ -323,6 +320,14 @@ begin
 
     +'  <li>finddocs:doc(DocPath)XPath'#13#10
     +'Returns an xml document with all files matching the path.<br>'#13#10
+    +'The XPath of the first matching node is returned as well.<br>'#13#10
+    +'Optionally the path can be prepended with a doc(DocPath) specifying a'
+    +' DocPath for the directories/files.<br>'#13#10
+    +'Example: finddocs:doc(db1)//graphics'#13#10
+    +'  </li>'#13#10
+
+    +'  <li>findnodes:doc(DocPath)XPath'#13#10
+    +'Returns an xml document with all nodes matching the path.<br>'#13#10
     +'Optionally the path can be prepended with a doc(DocPath) specifying a'
     +' DocPath for the directories/files.<br>'#13#10
     +'Example: finddocs:doc(db1)//graphics'#13#10
@@ -373,6 +378,8 @@ begin
     HandleRequestListDocs(URL,ARequest,AResponse,true);
   end else if Scheme='finddocs' then begin
     HandleRequestFindDocs(URL,ARequest,AResponse);
+  end else if Scheme='findnodes' then begin
+    HandleRequestFindNodes(URL,ARequest,AResponse);
   end else begin
     ErrorRespond(ARequest,AResponse,404,'invalid scheme "'+dbgstr(Scheme)+'"');
     exit;
@@ -394,23 +401,23 @@ var
 begin
   ms:=TMemoryStream.Create;
   try
-    BeginReading;
     try
+      BeginReading;
       try
         Doc:=Storage.FindDocument(Path,true,false);
-        Doc.WriteToStream(ms,Doc.Root);
+        Doc.WriteToStream(ms);
         ms.Position:=0;
         {$IFDEF VerboseDocRequest}
         debugln(['TXeletorApplication.HandleRequestDoc ',dbgs(ms)]);
         {$ENDIF}
-      except
-        on E: Exception do begin
-          ErrorRespond(ARequest,AResponse,404,E.Message);
-          exit;
-        end;
+      finally
+        EndReading;
       end;
-    finally
-      EndReading;
+    except
+      on E: Exception do begin
+        ErrorRespond(ARequest,AResponse,404,E.Message);
+        exit;
+      end;
     end;
     AResponse.ContentType:='text/xml';
     AResponse.ContentLength:=ms.Size;
@@ -451,8 +458,8 @@ begin
   ms:=TMemoryStream.Create;
   Docs:=TFPList.Create;
   try
-    BeginReading;
     try
+      BeginReading;
       try
         Storage.Roots.ListFiles(Path,Docs,[xlfAddFiles]);
         w('<?xml version="1.0" encoding="UTF-8"?>');
@@ -475,14 +482,15 @@ begin
         {$IFDEF VerboseListDocsRequest}
         debugln(['TXeletorApplication.HandleRequestListDocs ',dbgs(ms)]);
         {$ENDIF}
-      except
-        on E: Exception do begin
-          ErrorRespond(ARequest,AResponse,404,E.Message);
-          exit;
-        end;
+      finally
+        EndReading;
+        FreeAndNil(Docs);
       end;
-    finally
-      EndReading;
+    except
+      on E: Exception do begin
+        ErrorRespond(ARequest,AResponse,404,E.Message);
+        exit;
+      end;
     end;
     AResponse.ContentType:='text/xml';
     AResponse.ContentLength:=ms.Size;
@@ -516,10 +524,10 @@ begin
   ms:=TMemoryStream.Create;
   Nodes:=TFPList.Create;
   try
-    BeginReading;
     try
+      BeginReading;
       try
-        Storage.Roots.FindFirstNodes(Path,Nodes);
+        Storage.Roots.FindNodes(Path,Nodes,[xfnfFindFirst,xfnfContinueInNextFile]);
         w('<?xml version="1.0" encoding="UTF-8"?>');
         w('<nodes path="'+StrToXMLValue(Path)+'">');
         for i:=0 to Nodes.Count-1 do begin
@@ -528,14 +536,83 @@ begin
         end;
         w('</nodes>');
         ms.Position:=0;
-      except
-        on E: Exception do begin
-          ErrorRespond(ARequest,AResponse,404,E.Message);
-          exit;
-        end;
+      finally
+        EndReading;
+        FreeAndNil(Nodes);
       end;
-    finally
-      EndReading;
+    except
+      on E: Exception do begin
+        ErrorRespond(ARequest,AResponse,404,E.Message);
+        exit;
+      end;
+    end;
+    AResponse.ContentType:='text/xml';
+    AResponse.ContentLength:=ms.Size;
+    ClientLog(etInfo,ARequest,['Serving listing: "',Path,'". MimeType: ',AResponse.ContentType,' Length=',AResponse.ContentLength]);
+    AResponse.ContentStream:=ms;
+    AResponse.SendContent;
+    AResponse.ContentStream:=Nil;
+  finally
+    Nodes.Free;
+    ms.Free;
+  end;
+end;
+
+procedure TXeletorApplication.HandleRequestFindNodes(Path: string;
+  var ARequest: TFPHTTPConnectionRequest;
+  var AResponse: TFPHTTPConnectionResponse);
+var
+  ms: TMemoryStream;
+
+  procedure w(Line: string);
+  begin
+    Line:=Line+#13#10;
+    ms.Write(Line[1],length(Line));
+  end;
+
+var
+  Nodes: TFPList;
+  i: Integer;
+  Node: TXDBNode;
+  CurRoot: TXDBNode;
+  LastRoot: TXDBNode;
+begin
+  ms:=TMemoryStream.Create;
+  Nodes:=TFPList.Create;
+  try
+    try
+      BeginReading;
+      try
+        Storage.Roots.FindNodes(Path,Nodes);
+        w('<?xml version="1.0" encoding="UTF-8"?>');
+        w('<nodes path="'+StrToXMLValue(Path)+'">');
+        LastRoot:=nil;
+        for i:=0 to Nodes.Count-1 do begin
+          Node:=TXDBNode(Nodes[i]);
+          CurRoot:=Node.GetRoot;
+          if CurRoot<>LastRoot then begin
+            if LastRoot<>nil then
+              w('  </file>');
+            w('  <file docpath="'+CurRoot.GetFullFilename+'">');
+            LastRoot:=CurRoot;
+          end;
+          w('    <node xpath="'+Node.GetPath+'">');
+          Node.WriteToStream(ms,3);
+          w('    </node>');
+        end;
+        if LastRoot<>nil then
+          w('  </file>');
+        w('</nodes>');
+        ms.Position:=0;
+      finally
+        EndReading;
+        FreeAndNil(Nodes);
+      end;
+    except
+      on E: Exception do begin
+        ErrorRespond(ARequest,AResponse,404,E.Message);
+        exit;
+      end;
     end;
     AResponse.ContentType:='text/xml';
     AResponse.ContentLength:=ms.Size;
@@ -587,9 +664,10 @@ var
   i: Integer;
   Node: TXDBNode;
 begin
+  debugln(['TXeletorApplication.TestFindDocs START ',NodePath]);
   Nodes:=TFPList.Create;
   try
-    Storage.Roots.FindFirstNodes(NodePath,Nodes);
+    Storage.Roots.FindNodes(NodePath,Nodes);
     for i:=0 to Nodes.Count-1 do begin
       Node:=TXDBNode(Nodes[i]);
       debugln(['TXeletorApplication.TestFindDocs ',i,' file="'+Node.GetFullFilename+'" xpath="'+Node.GetPath+'"']);
@@ -597,6 +675,7 @@ begin
   finally
     Nodes.Free;
   end;
+  debugln(['TXeletorApplication.TestFindDocs END']);
 end;
 
 procedure TXeletorApplication.ParamError(const Msg: string);
