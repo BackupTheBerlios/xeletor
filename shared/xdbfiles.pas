@@ -92,18 +92,18 @@ type
     function GetEnumerator: TXDBNodeEnumerator; // children (not grand children)
     function GetNextSibling: TXDBNode;
     function GetPrevSibling: TXDBNode;
-    function GetNext: TXDBNode; // use this to traverse pre-order
-    function GetNextSkipChildren: TXDBNode;
+    function GetNext: TXDBNode; // first child, then next sibling, then next sibling of parent, ...
+    function GetNextSkipChildren: TXDBNode; // first next sibling, then next sibling of parent, ...
     function GetPrev: TXDBNode; // the reverse of GetNext
-    function GetLastLeaf: TXDBNode;
-    function GetRoot: TXDBNode;
-    function GetFullFilename: string;
-    function EnumerateAllChildren: TXDBNodeAllChildEnumerator;
+    function GetLastLeaf: TXDBNode; // get last child of last child of ...
+    function GetRoot: TXDBNode; // get top most parent
+    function GetFullFilename: string; // GetFullFilename of document
+    function EnumerateAllChildren: TXDBNodeAllChildEnumerator; // all children including grand children
 
     // search
-    function FindChildrenWithPath(const Path: String;
+    function FindChildWithPath(const Path: String;
            const OnIterate: TXDBNodeIterateEvent = nil): TXDBNode;
-    function FindChildrenWithPath(Path: PChar;
+    function FindChildWithPath(Path: PChar;
            const OnIterate: TXDBNodeIterateEvent = nil): TXDBNode; // e.g. A/B/*/C//D, a /*/ means one arbitrary node, // means any number of nodes in between
 
     // conversion
@@ -792,13 +792,13 @@ begin
   Result:=TXDBNodeAllChildEnumerator.Create(Self);
 end;
 
-function TXDBNode.FindChildrenWithPath(const Path: String;
+function TXDBNode.FindChildWithPath(const Path: String;
   const OnIterate: TXDBNodeIterateEvent): TXDBNode;
 begin
-  Result:=FindChildrenWithPath(PChar(Path),OnIterate);
+  Result:=FindChildWithPath(PChar(Path),OnIterate);
 end;
 
-function TXDBNode.FindChildrenWithPath(Path: PChar;
+function TXDBNode.FindChildWithPath(Path: PChar;
   const OnIterate: TXDBNodeIterateEvent): TXDBNode;
 { A/B/*/C//D
 }
@@ -848,7 +848,7 @@ begin
         Result:=Child;
         if NodeFound(Result) then exit;
       end else begin
-        Result:=Child.FindChildrenWithPath(Path,OnIterate);
+        Result:=Child.FindChildWithPath(Path,OnIterate);
         if Result<>nil then exit;
       end;
     end;
@@ -873,7 +873,7 @@ begin
       inc(Path);
       for i:=0 to GetChildCount-1 do begin
         //debugln([GetIndentStr(GetLevel*2),'TXDBNode.FindChildWithPath ',i,'/',GetChildCount]);
-        Result:=GetChild(i).FindChildrenWithPath(Path,OnIterate);
+        Result:=GetChild(i).FindChildWithPath(Path,OnIterate);
         if Result<>nil then exit;
       end;
     end;
@@ -893,7 +893,7 @@ begin
           Result:=Child;
           if NodeFound(Result) then exit;
         end else begin
-          Result:=Child.FindChildrenWithPath(Path,OnIterate);
+          Result:=Child.FindChildWithPath(Path,OnIterate);
           if Result<>nil then exit;
         end;
         Child:=Child.GetNext;
@@ -1365,7 +1365,7 @@ var
       Doc:=TXDBDocument(aFile);
       if (Doc.Root<>nil) then begin
         Handler.Found:=false;
-        Doc.Root.FindChildrenWithPath(XPath,@Handler.OnIterate);
+        Doc.Root.FindChildWithPath(XPath,@Handler.OnIterate);
       end;
     end;
   end;
