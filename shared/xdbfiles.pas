@@ -30,7 +30,7 @@ type
   TXDBNode = class;
   TXDBTreeNode = class;
 
-  { TXDBNodeEnumerator }
+  { TXDBNodeEnumerator - enumerates direct children }
 
   TXDBNodeEnumerator = class
   private
@@ -41,6 +41,20 @@ type
     constructor Create(Node: TXDBNode);
     function MoveNext: boolean;
     property Current: TXDBNode read FCurrent;
+  end;
+
+  { TXDBNodeAllChildEnumerator }
+
+  TXDBNodeAllChildEnumerator = class
+  private
+    FNode: TXDBTreeNode;
+    FCurrent: TXDBNode;
+    FEnd: TXDBNode;
+  public
+    constructor Create(Node: TXDBNode);
+    function MoveNext: boolean;
+    property Current: TXDBNode read FCurrent;
+    function GetEnumerator: TXDBNodeAllChildEnumerator; // including grand children
   end;
 
   TXDBNodeIterateEvent = procedure(Node: TXDBNode;
@@ -84,6 +98,7 @@ type
     function GetLastLeaf: TXDBNode;
     function GetRoot: TXDBNode;
     function GetFullFilename: string;
+    function EnumerateAllChildren: TXDBNodeAllChildEnumerator;
 
     // search
     function FindChildrenWithPath(const Path: String;
@@ -220,6 +235,9 @@ type
     function GetEnumerator: TXDBDirectoryEnumerator;
     procedure ListFiles(DocPath: string; var FileList: TFPList;
                         Flags: TXDBListFlags);
+    function FindFirstNode(NodePath: string;
+                         ExceptionOnNotFound: boolean = false;
+                         const OnIterate: TXDBNodeIterateEvent = nil): TXDBNode;
     procedure FindNodes(NodePath: string; var NodeList: TFPList;
       Flags: TXDBFindNodesFlags = [];
       const OnIterate: TXDBNodeIterateEvent = nil);
@@ -477,6 +495,32 @@ type
     Handler: TXDBNodeIterateEvent;
     procedure OnIterate(Node: TXDBNode; var TheAbort: boolean);
   end;
+
+{ TXDBNodeAllChildEnumerator }
+
+constructor TXDBNodeAllChildEnumerator.Create(Node: TXDBNode);
+begin
+  if Node is TXDBTreeNode then
+    FNode:=TXDBTreeNode(Node);
+end;
+
+function TXDBNodeAllChildEnumerator.MoveNext: boolean;
+begin
+  if FNode=nil then exit(false);
+  if FCurrent=nil then begin
+    FCurrent:=FNode.GetNext;
+    FEnd:=FNode.GetNextSkipChildren;
+  end else
+    FCurrent:=FCurrent.GetNext;
+  if FCurrent=FEnd then
+    FCurrent:=nil;
+  Result:=(FCurrent<>nil);
+end;
+
+function TXDBNodeAllChildEnumerator.GetEnumerator: TXDBNodeAllChildEnumerator;
+begin
+  Result:=Self;
+end;
 
 { TFindNodeHandler }
 
@@ -741,6 +785,11 @@ begin
   Root:=GetRoot;
   if (Root is TXDBRootNode) and (TXDBRootNode(Root).Doc<>nil) then
     Result:=TXDBRootNode(Root).Doc.GetFullFilename;
+end;
+
+function TXDBNode.EnumerateAllChildren: TXDBNodeAllChildEnumerator;
+begin
+  Result:=TXDBNodeAllChildEnumerator.Create(Self);
 end;
 
 function TXDBNode.FindChildrenWithPath(const Path: String;
@@ -1258,6 +1307,31 @@ procedure TXDBDirectory.ListFiles(DocPath: string; var FileList: TFPList;
 
 begin
   Search(Self);
+end;
+
+function TXDBDirectory.FindFirstNode(NodePath: string;
+  ExceptionOnNotFound: boolean; const OnIterate: TXDBNodeIterateEvent
+  ): TXDBNode;
+
+  procedure RaiseNotFound;
+  begin
+    raise Exception.Create('Node not found: '+NodePath);
+  end;
+
+var
+  NodeList: TFPList;
+begin
+  Result:=nil;
+  NodeList:=nil;
+  try
+    FindNodes(NodePath,NodeList,[xfnfFindFirst],OnIterate);
+    if (NodeList<>nil) and (NodeList.Count>0) then
+      Result:=TXDBNode(NodeList[0])
+    else if ExceptionOnNotFound then
+      RaiseNotFound;
+  finally
+    NodeList.Free;
+  end;
 end;
 
 procedure TXDBDirectory.FindNodes(NodePath: string; var NodeList: TFPList;

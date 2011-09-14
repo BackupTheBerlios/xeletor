@@ -95,6 +95,7 @@ type
     // Tests
     procedure TestIndex1;
     procedure TestFindDocs(const NodePath: string);
+    procedure TestForAllGrandChildren(const NodePath: string);
   protected
     // parameters, configs
     fParams: TStringList;
@@ -182,7 +183,9 @@ begin
   //TestIndex1;
   //for i:=0 to 1000 do Sleep(1000);
   //TestFindDocs('//fileDesc');
-
+  TestForAllGrandChildren('//fileDesc');
+  Terminate;
+  exit;
 
   Log(etInfo,'starting on port '+IntToStr(Port));
   fLog.FlushStdOutLog;
@@ -197,7 +200,7 @@ begin
       Sleep(50);
       fLog.FlushStdOutLog;
       fLog.WatchDog;
-    until false;
+    until Terminated;
   finally
     Server.Free;
   end;
@@ -676,6 +679,18 @@ begin
     Nodes.Free;
   end;
   debugln(['TXeletorApplication.TestFindDocs END']);
+end;
+
+procedure TXeletorApplication.TestForAllGrandChildren(const NodePath: string);
+var
+  Node: TXDBNode;
+  Child: TXDBNode;
+begin
+  debugln(['TXeletorApplication.TestForAllGrandChildren START NodePath=',NodePath]);
+  Node:=Storage.Roots.FindFirstNode(NodePath,true);
+  for Child in Node.EnumerateAllChildren do
+    writeln(Child.GetPath);
+  debugln(['TXeletorApplication.TestForAllGrandChildren END']);
 end;
 
 procedure TXeletorApplication.ParamError(const Msg: string);
