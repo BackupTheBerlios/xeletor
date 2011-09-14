@@ -5,8 +5,9 @@ unit xdbprocess;
 interface
 
 uses
-  Classes, SysUtils, xdbutils, FileProcs,
-  process, fphttpclient, laz2_DOM, laz2_XMLRead;
+  Classes, SysUtils, FileProcs,
+  process, fphttpclient, laz2_DOM, laz2_XMLRead,
+  xdbutils, xdbfiles;
 
 // execute external programs
 function RunTool(const Filename: string; Params: TStringList;
@@ -39,6 +40,8 @@ procedure XSLTProcNameValueToParams(NameValues, Params: TStrings);
 // download
 function DownloadText(const URL: string): TStrings;
 procedure DownloadXML(const URL: string; out doc: TXMLDocument);
+procedure DownloadXDB(const URL: string; out Root: TXDBRootNode;
+  CombineStrings: boolean = false);
 
 implementation
 
@@ -230,6 +233,21 @@ begin
   finally
     client.Free;
     ms.Free;
+  end;
+end;
+
+procedure DownloadXDB(const URL: string; out Root: TXDBRootNode;
+  CombineStrings: boolean);
+var
+  doc: TXMLDocument;
+begin
+  Root:=nil;
+  doc:=nil;
+  try
+    DownloadXML(URL,doc);
+    CreateXDBTree(doc,Root,CombineStrings);
+  finally
+    doc.Free;
   end;
 end;
 
