@@ -34,7 +34,7 @@
     </RunParams>
     <RequiredPackages Count="1">
       <Item1>
-        <PackageName Value="XPathDBLaz"/>
+        <PackageName Value="XeletorClient"/>
       </Item1>
     </RequiredPackages>
     <Units Count="1">
