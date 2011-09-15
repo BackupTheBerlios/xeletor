@@ -2,7 +2,7 @@
   This source is only used to compile and install the package.
  }
 
-unit XPathDBLaz; 
+unit XeletorClient; 
 
 interface
 
@@ -16,5 +16,5 @@ begin
 end; 
 
 initialization
-  RegisterPackage('XPathDBLaz', @Register); 
+  RegisterPackage('XeletorClient', @Register); 
 end.
