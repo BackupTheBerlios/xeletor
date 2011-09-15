@@ -134,7 +134,7 @@ type
   public
     constructor Create(TheOwner: TComponent); override;
     destructor Destroy; override;
-    procedure WriteHelp; virtual;
+    procedure WriteHelp(WithHeader: boolean); virtual;
     procedure BeginReading;
     procedure EndReading;
     procedure BeginWriting;
@@ -697,7 +697,7 @@ procedure TXeletorApplication.ParamError(const Msg: string);
 begin
   writeln('Error: ',Msg);
   writeln;
-  WriteHelp;
+  WriteHelp(false);
   Log(etError,'TFTPMirror.ParamError '+Msg);
   Halt;
 end;
@@ -737,8 +737,8 @@ end;
 
 procedure TXeletorApplication.ReadConfig;
 const
-  ShortOpts = 'hc:l:d:p:vq';
-  LongOpts = 'help config: log: dbdir: watchdoginterval: port: singlethreaded verbose quiet';
+  ShortOpts = 'hc:l:d:p:vqV';
+  LongOpts = 'help config: log: dbdir: watchdoginterval: port: singlethreaded verbose quiet version';
   ConfigOpt = '--config=';
 var
   LongOptions: TStrings;
@@ -766,7 +766,7 @@ var
       Opts.Free;
       NonOpts.Free;
     end;
-    fLog.Verbose:=HasOption('v','verbose');
+    fLog.Verbose:=HasOption('V','verbose');
     fLog.Quiet:=HasOption('q','quiet');
   end;
 
@@ -777,7 +777,13 @@ begin
 
     // parse parameters
     if HasOption('h','help') then begin
-      WriteHelp;
+      WriteHelp(true);
+      Halt;
+    end;
+
+    // parse parameters
+    if HasOption('v','version') then begin
+      writeln(Version);
       Halt;
     end;
 
@@ -1095,10 +1101,26 @@ begin
   DoneCriticalsection(fCritSec);
 end;
 
-procedure TXeletorApplication.WriteHelp;
+procedure TXeletorApplication.WriteHelp(WithHeader: boolean);
 begin
-  writeln('Usage: ',ExeName,' -h');
+  writeln(GetCaption);
   writeln;
+  if WithHeader then begin
+    writeln('Xeletor is a lightweight XML database.');
+    writeln('It reads directories of xml files into memory and monitors them');
+    writeln('to update automatically when files change on disk.');
+    writeln('It provides a simple webserver for various types of queries.');
+    writeln('To get some help about the supported queries download the default');
+    writeln('webpage at http://localhost:',Port);
+    writeln;
+    writeln('Official homepage: http://developer.berlios.de/projects/xeletor/');
+    writeln;
+    writeln;
+  end;
+  writeln('Usage: ',ExeName,' -d db1=/path/to/your/xml/files');
+  writeln;
+  writeln('  -h');
+  writeln('  --help          : write this help');
   writeln('  -c <configfile> : file with more options. One line per option.');
   writeln('                    Lines beginning with # are comments.');
   writeln('  -l <logfile>');
@@ -1108,12 +1130,14 @@ begin
   writeln('                         Can be given multiple times.');
   writeln('  --singlethreaded : run with least amount of threads');
   writeln('  -p <port>');
-  writeln('  --port=<port> : TCP port, default: '+dbgs(Port));
+  writeln('  --port=<port>   : TCP port, default: ',Port);
   writeln('  --watchdoginterval=<in seconds> : write an alive message to the log');
   writeln('  -v');
-  writeln('  -verbose : write what is going on');
+  writeln('  --version       : write version and exit');
+  writeln('  -V');
+  writeln('  -verbose        : write what is going on');
   writeln('  -q');
-  writeln('  -quiet : less information');
+  writeln('  -quiet          : write less information');
 end;
 
 procedure TXeletorApplication.BeginReading;
