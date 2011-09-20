@@ -144,20 +144,17 @@ begin
     TheProcess.ShowWindow := swoHide;
     TheProcess.CurrentDirectory:=UTF8ToSys(WorkingDirectory);
     // feed the input
-    debugln(['RunXSLTProcPipe Execute']);
     TheProcess.Execute;
-    debugln(['RunXSLTProcPipe write Input ',InputStream.Size-InputStream.Position]);
     if InputStream<>nil then
       TheProcess.Input.CopyFrom(InputStream,InputStream.Size-InputStream.Position);
-    debugln(['RunXSLTProcPipe read ...']);
+    TheProcess.CloseInput;
     // read all output
-    SetLength(Buffer,1);
+    SetLength(Buffer,4096);
     repeat
       if (TheProcess.Output<>nil) then
         OutLen:=TheProcess.Output.Read(Buffer[1],length(Buffer))
       else
         OutLen:=0;
-      debugln(['RunXSLTProcPipe OutLen=',OutLen]);
       if OutLen=0 then break;
       OutputStream.Write(Buffer[1],OutLen);
     until false;

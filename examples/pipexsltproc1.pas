@@ -1,7 +1,5 @@
 //#!/usr/bin/env instantfpc
 
-{$note ToDo: pipe hangs}
-
 {$mode objfpc}{$H+}
 
 uses
