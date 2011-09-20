@@ -157,18 +157,27 @@ begin
     // start process
     TheProcess.Execute;
     // feed the input
+    writeln('RunXSLTProcPipe AAA1');
     TheProcess.Input.CopyFrom(XMLInputStream,XMLInputStream.Size-XMLInputStream.Position);
+    writeln('RunXSLTProcPipe AAA2');
     TheProcess.CloseInput;
+    writeln('RunXSLTProcPipe AAA3');
     // read all output
     SetLength(Buffer,4096);
-    repeat
-      if (TheProcess.Output<>nil) then
-        OutLen:=TheProcess.Output.Read(Buffer[1],length(Buffer))
-      else
-        OutLen:=0;
-      if OutLen=0 then break;
-      OutputStream.Write(Buffer[1],OutLen);
-    until false;
+    while TheProcess.Output<>nil do begin
+      writeln('RunXSLTProcPipe ');
+      OutLen:=TheProcess.Output.NumBytesAvailable;
+      if OutLen>length(Buffer) then
+        OutLen:=length(Buffer);
+      if OutLen=0 then begin
+        if not TheProcess.Running then break;
+        Sleep(20);
+      end else begin
+        OutLen:=TheProcess.Output.Read(Buffer[1],OutLen);
+        if OutLen>0 then
+          OutputStream.Write(Buffer[1],OutLen);
+      end;
+    end;
     TheProcess.WaitOnExit;
   finally
     TheProcess.Free;
