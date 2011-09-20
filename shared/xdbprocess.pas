@@ -32,8 +32,11 @@ function RunXSLTProc(XSLFilename, XMLFilename: string;
   WorkingDirectory: string  = '';
   Flags: TXSLTProcFlags = xslpfDefaultHTML): TStringList;
 procedure RunXSLTProcPipe(XSLFilename: string;
-  InputStream, OutputStream: TStream; WorkingDirectory: string = '';
-  Flags: TXSLTProcFlags = xslpfDefaultHTML; Params: TStrings = nil);
+  XMLInputStream, OutputStream: TStream; WorkingDirectory: string = '';
+  Flags: TXSLTProcFlags = xslpfDefaultHTML; Params: TStrings = nil); overload;
+procedure RunXSLTProcPipe(XSLFilename: string;
+  XMLInput: TStrings; OutputStream: TStream; WorkingDirectory: string = '';
+  Flags: TXSLTProcFlags = xslpfDefaultHTML; Params: TStrings = nil); overload;
 procedure XSLTProcFlagsToList(const Flags: TXSLTProcFlags; Params: TStrings);
 procedure XSLTProcNameValueToParams(NameValues, Params: TStrings);
 
@@ -120,7 +123,7 @@ begin
   end;
 end;
 
-procedure RunXSLTProcPipe(XSLFilename: string; InputStream, OutputStream: TStream;
+procedure RunXSLTProcPipe(XSLFilename: string; XMLInputStream, OutputStream: TStream;
   WorkingDirectory: string = '';
   Flags: TXSLTProcFlags = xslpfDefaultHTML; Params: TStrings = nil);
 var
@@ -129,9 +132,17 @@ var
   Buffer: string;
   OutLen: Integer;
 begin
+  if XMLInputStream=nil then
+    raise Exception.Create('RunXSLTProcPipe: missing XMLInputStream');
+  if XMLInputStream.Position=XMLInputStream.Size then
+    raise Exception.Create('RunXSLTProcPipe: missing XMLInputStream');
+  if OutputStream=nil then
+    raise Exception.Create('RunXSLTProcPipe: missing OutputStream');
+  if XMLInputStream=nil then
+    raise Exception.Create('RunXSLTProcPipe: missing XMLInputStream');
   XSLTProc:=GetDefaultXSLTProcPath;
   if not FileIsExecutable(XSLTProc) then
-    raise Exception.Create('can not execute xsltproc ('+XSLTProc+')');
+    raise Exception.Create('RunXSLTProcPipe: can not execute xsltproc ('+XSLTProc+')');
   TheProcess:=TProcess.Create(nil);
   try
     TheProcess.Executable:=XSLTProc;
@@ -140,13 +151,13 @@ begin
       TheProcess.Parameters.AddStrings(Params);
     TheProcess.Parameters.Append(XSLFilename);
     TheProcess.Parameters.Append('-'); // use stdin as input
-    TheProcess.Options:= [poUsePipes];
+    TheProcess.Options:= [poUsePipes,poStderrToOutPut];
     TheProcess.ShowWindow := swoHide;
     TheProcess.CurrentDirectory:=UTF8ToSys(WorkingDirectory);
-    // feed the input
+    // start process
     TheProcess.Execute;
-    if InputStream<>nil then
-      TheProcess.Input.CopyFrom(InputStream,InputStream.Size-InputStream.Position);
+    // feed the input
+    TheProcess.Input.CopyFrom(XMLInputStream,XMLInputStream.Size-XMLInputStream.Position);
     TheProcess.CloseInput;
     // read all output
     SetLength(Buffer,4096);
@@ -161,6 +172,23 @@ begin
     TheProcess.WaitOnExit;
   finally
     TheProcess.Free;
+  end;
+end;
+
+procedure RunXSLTProcPipe(XSLFilename: string; XMLInput: TStrings;
+  OutputStream: TStream; WorkingDirectory: string; Flags: TXSLTProcFlags;
+  Params: TStrings);
+var
+  XMLInputStream: TStringStream;
+begin
+  if XMLInput=nil then
+    raise Exception.Create('RunXSLTProcPipe: missing XMLInput');
+  XMLInputStream:=TStringStream.Create(XMLInput.Text);
+  try
+    RunXSLTProcPipe(XSLFilename,XMLInputStream,OutputStream,WorkingDirectory,
+                    Flags,Params);
+  finally
+    XMLInputStream.Free;
   end;
 end;
 
