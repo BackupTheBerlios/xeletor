@@ -25,18 +25,18 @@ type
     );
   TXSLTProcFlags = set of TXSLTProcFlag;
 const
-  xslpfDefaultHTML = [xslpfHTML,xslpfNoMkdir,xslpfNoNet,xslpfNoWrite];
+  xslpfDefaultCreateHTML = [xslpfNoMkdir,xslpfNoNet,xslpfNoWrite];
 
 function GetDefaultXSLTProcPath: string;
 function RunXSLTProc(XSLFilename, XMLFilename: string;
   WorkingDirectory: string  = '';
-  Flags: TXSLTProcFlags = xslpfDefaultHTML): TStringList;
+  Flags: TXSLTProcFlags = xslpfDefaultCreateHTML): TStringList;
 procedure RunXSLTProcPipe(XSLFilename: string;
   XMLInputStream, OutputStream: TStream; WorkingDirectory: string = '';
-  Flags: TXSLTProcFlags = xslpfDefaultHTML; Params: TStrings = nil); overload;
+  Flags: TXSLTProcFlags = xslpfDefaultCreateHTML; Params: TStrings = nil); overload;
 procedure RunXSLTProcPipe(XSLFilename: string;
   XMLInput: TStrings; OutputStream: TStream; WorkingDirectory: string = '';
-  Flags: TXSLTProcFlags = xslpfDefaultHTML; Params: TStrings = nil); overload;
+  Flags: TXSLTProcFlags = xslpfDefaultCreateHTML; Params: TStrings = nil); overload;
 procedure XSLTProcFlagsToList(const Flags: TXSLTProcFlags; Params: TStrings);
 procedure XSLTProcNameValueToParams(NameValues, Params: TStrings);
 
@@ -107,7 +107,7 @@ end;
 
 function RunXSLTProc(XSLFilename, XMLFilename: string;
   WorkingDirectory: string  = '';
-  Flags: TXSLTProcFlags = xslpfDefaultHTML): TStringList;
+  Flags: TXSLTProcFlags = xslpfDefaultCreateHTML): TStringList;
 var
   Params: TStringList;
 begin
@@ -125,12 +125,15 @@ end;
 
 procedure RunXSLTProcPipe(XSLFilename: string; XMLInputStream, OutputStream: TStream;
   WorkingDirectory: string = '';
-  Flags: TXSLTProcFlags = xslpfDefaultHTML; Params: TStrings = nil);
+  Flags: TXSLTProcFlags = xslpfDefaultCreateHTML; Params: TStrings = nil);
 var
   XSLTProc: String;
   TheProcess: TProcess;
   Buffer: string;
   OutLen: Integer;
+  InputClosed: Boolean;
+  Code: Integer;
+  ErrMsg: String;
 begin
   if XMLInputStream=nil then
     raise Exception.Create('RunXSLTProcPipe: missing XMLInputStream');
@@ -151,27 +154,43 @@ begin
       TheProcess.Parameters.AddStrings(Params);
     TheProcess.Parameters.Append(XSLFilename);
     TheProcess.Parameters.Append('-'); // use stdin as input
-    TheProcess.Options:= [poUsePipes,poStderrToOutPut];
+    TheProcess.Options:= [poUsePipes];
     TheProcess.ShowWindow := swoHide;
     TheProcess.CurrentDirectory:=UTF8ToSys(WorkingDirectory);
     // start process
     TheProcess.Execute;
-    // feed the input
-    writeln('RunXSLTProcPipe AAA1');
-    TheProcess.Input.CopyFrom(XMLInputStream,XMLInputStream.Size-XMLInputStream.Position);
-    writeln('RunXSLTProcPipe AAA2');
-    TheProcess.CloseInput;
-    writeln('RunXSLTProcPipe AAA3');
     // read all output
+    InputClosed:=false;
     SetLength(Buffer,4096);
+    ErrMsg:='';
     while TheProcess.Output<>nil do begin
-      writeln('RunXSLTProcPipe ');
+      // read error
+      OutLen:=TheProcess.Stderr.NumBytesAvailable;
+      if OutLen>length(Buffer) then
+        OutLen:=length(Buffer);
+      if OutLen>0 then begin
+        OutLen:=TheProcess.Output.Read(Buffer[1],OutLen);
+        if OutLen>0 then
+          ErrMsg:=ErrMsg+copy(Buffer,1,OutLen);
+        continue;
+      end;
+      // read output
       OutLen:=TheProcess.Output.NumBytesAvailable;
       if OutLen>length(Buffer) then
         OutLen:=length(Buffer);
       if OutLen=0 then begin
+        // no output
         if not TheProcess.Running then break;
-        Sleep(20);
+        if XMLInputStream.Size>XMLInputStream.Position then begin
+          // feed input
+          OutLen:=XMLInputStream.Read(Buffer[1],length(Buffer));
+          if OutLen>0 then
+            TheProcess.Input.Write(Buffer[1],OutLen);
+        end else if not InputClosed then begin
+          InputClosed:=true;
+          TheProcess.CloseInput;
+        end;
+        Sleep(20); // no input, no output => wait a bit
       end else begin
         OutLen:=TheProcess.Output.Read(Buffer[1],OutLen);
         if OutLen>0 then
@@ -179,6 +198,9 @@ begin
       end;
     end;
     TheProcess.WaitOnExit;
+    Code:=TheProcess.ExitStatus;
+    if Code<>0 then
+      raise Exception.Create('xsltproc failed with exit code '+IntToStr(Code));
   finally
     TheProcess.Free;
   end;
@@ -203,17 +225,17 @@ end;
 
 procedure XSLTProcFlagsToList(const Flags: TXSLTProcFlags; Params: TStrings);
 begin
-  if xslpfHTML in Flags then;
+  if xslpfHTML in Flags then
     Params.Add('--html');
-  if xslpfNoDTDAttr in Flags then;
+  if xslpfNoDTDAttr in Flags then
     Params.Add('--nodtdattr');
-  if xslpfNoMkdir in Flags then;
+  if xslpfNoMkdir in Flags then
     Params.Add('--nomkdir');
-  if xslpfNoNet in Flags then;
+  if xslpfNoNet in Flags then
     Params.Add('--nonet');
-  if xslpfNoValid in Flags then;
+  if xslpfNoValid in Flags then
     Params.Add('--novalid');
-  if xslpfNoWrite in Flags then;
+  if xslpfNoWrite in Flags then
     Params.Add('--nowrite');
 end;
 
