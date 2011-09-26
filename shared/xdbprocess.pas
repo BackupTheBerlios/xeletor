@@ -189,8 +189,8 @@ begin
         end else if not InputClosed then begin
           InputClosed:=true;
           TheProcess.CloseInput;
-        end;
-        Sleep(20); // no input, no output => wait a bit
+        end else
+          Sleep(20); // no input, no output => wait a bit
       end else begin
         OutLen:=TheProcess.Output.Read(Buffer[1],OutLen);
         if OutLen>0 then
