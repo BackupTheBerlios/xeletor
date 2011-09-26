@@ -169,7 +169,7 @@ begin
       if OutLen>length(Buffer) then
         OutLen:=length(Buffer);
       if OutLen>0 then begin
-        OutLen:=TheProcess.Output.Read(Buffer[1],OutLen);
+        OutLen:=TheProcess.Stderr.Read(Buffer[1],OutLen);
         if OutLen>0 then
           ErrMsg:=ErrMsg+copy(Buffer,1,OutLen);
         continue;
@@ -199,8 +199,11 @@ begin
     end;
     TheProcess.WaitOnExit;
     Code:=TheProcess.ExitStatus;
-    if Code<>0 then
-      raise Exception.Create('xsltproc failed with exit code '+IntToStr(Code));
+    if Code<>0 then begin
+      if ErrMsg<>'' then ErrMsg:=LineEnding+ErrMsg;
+      ErrMsg:='xsltproc failed with exit code '+IntToStr(Code)+ErrMsg;
+      raise Exception.Create(ErrMsg);
+    end;
   finally
     TheProcess.Free;
   end;
