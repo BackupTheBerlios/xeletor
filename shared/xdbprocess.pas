@@ -5,6 +5,9 @@ unit xdbprocess;
 interface
 
 uses
+  {$IFDEF Linux}
+  BaseUnix,
+  {$ENDIF}
   Classes, SysUtils, FileProcs,
   process, fphttpclient, laz2_DOM, laz2_XMLRead,
   xdbutils, xdbfiles;
@@ -310,5 +313,30 @@ begin
   end;
 end;
 
+{$IFDEF Linux}
+// ignore Linux signal SIGPIPE
+// SIGPIPE can happen, when a process exits while sending Input to it
+var
+  OldSigPipe: SigActionRec;
+
+procedure SignalToRunerror({%H-}sig : longint; {%H-}SigInfo: PSigInfo;
+  {%H-}SigContext: PSigContext);
+begin
+  // ignore
+end;
+
+procedure InstallSigHandler(signum: longint; out oldact: SigActionRec);
+var
+  act: SigActionRec;
+begin
+  FillByte(act{%H-}, sizeof(SigActionRec),0);
+  act.sa_handler := SigActionHandler(@SignalToRunError);
+  act.sa_flags:=SA_SIGINFO;
+  FpSigAction(signum,@act,@oldact);
+end;
+
+initialization
+  InstallSigHandler(SIGPIPE,OldSigPipe);
+{$ENDIF}
 end.
 
