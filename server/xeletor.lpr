@@ -686,7 +686,7 @@ var
 begin
   debugln(['TXeletorApplication.TestForAllGrandChildren START NodePath=',NodePath]);
   Node:=Storage.Roots.FindFirstNode(NodePath,true);
-  for Child in Node.EnumerateAllChildren do
+  for Child in Node.GetEnumeratorAllChildren do
     writeln(Child.GetPath);
   debugln(['TXeletorApplication.TestForAllGrandChildren END']);
 end;
