@@ -459,7 +459,7 @@ begin
         inc(p);
     until false;
     DocPath:=copy(NodePath,5,p-StartPos);
-    XPath:=copy(NodePath,p-PChar(NodePath),length(NodePath));
+    XPath:=copy(NodePath,p-PChar(NodePath)+2,length(NodePath));
   end else begin
     XPath:=NodePath;
   end;
@@ -1376,22 +1376,23 @@ var
   DocPath, XPath: string;
   Handler: TFindNodeHandler;
 
-  procedure Search(aFile: TXDBFile);
+  procedure Search(aFile: TXDBFile; IgnoreDocPath: boolean);
   // returns true to abort any further search
   var
-    ChildMightFit: boolean;
     SubFile: TXDBFile;
     Fits: Boolean;
+    ChildMightFit: boolean;
     Doc: TXDBDocument;
   begin
-    if DocPath='' then begin
+    if (DocPath='') or IgnoreDocPath then begin
       Fits:=true;
       ChildMightFit:=true;
     end else
       Fits:=aFile.CheckDocPath(DocPath,ChildMightFit);
+    //debugln(['Search ',afile.GetFullFilename,' Fits=',Fits,' ChildMightFit=',ChildMightFit]);
     if (aFile is TXDBDirectory) and ChildMightFit then begin
       for SubFile in TXDBDirectory(aFile) do begin
-        Search(SubFile);
+        Search(SubFile,Fits);
         if Handler.Found
         and (xfnfFindFirst in Flags)
         and (not (xfnfContinueInNextFile in Flags))
@@ -1414,7 +1415,7 @@ begin
       Handler.Nodes:=@NodeList;
     Handler.Abort:=xfnfFindFirst in Flags;
     Handler.Handler:=OnIterate;
-    Search(Self);
+    Search(Self,false);
   finally
     Handler.Free;
   end;
@@ -1483,6 +1484,7 @@ function TXDBFile.CheckDocPath(const DocPath: string; out
     while (MaskPos^='/') do inc(MaskPos);
     while (FilePos^='/') do inc(FilePos);
     repeat
+      //debugln(['TXDBFile.CheckDocPath.Search MaskPos=',dbgstr(MaskPos^),' FilePos=',dbgstr(FilePos^)]);
       if MaskPos^=#0 then begin
         if FilePos^=#0 then begin
           CheckDocPath:=true;

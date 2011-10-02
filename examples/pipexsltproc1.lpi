@@ -30,7 +30,10 @@
     <RunParams>
       <local>
         <FormatVersion Value="1"/>
+        <HostApplicationFilename Value="$(InstantFPCCache)/$NameOnly($(ProjFile))"/>
+        <CommandLineParams Value="test.xsl test.xml"/>
         <LaunchingApplication PathPlusParams="/usr/bin/xterm -T 'Lazarus Run Output' -e $(LazarusDir)/tools/runwait.sh $(TargetCmdLine)"/>
+        <WorkingDirectory Value="$(ProjPath)"/>
       </local>
     </RunParams>
     <RequiredPackages Count="1">
@@ -55,12 +58,22 @@
       <IncludeFiles Value="$(ProjOutDir)"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
+    <Linking>
+      <Debugging>
+        <GenerateDebugInfo Value="True"/>
+        <DebugInfoType Value="dsAuto"/>
+      </Debugging>
+    </Linking>
     <Other>
       <CompilerMessages>
         <UseMsgFile Value="True"/>
       </CompilerMessages>
       <CompilerPath Value="$(CompPath)"/>
+      <ExecuteBefore>
+        <Command Value="instantfpc --skip-run -B -gl &quot;-Fu$(ProjUnitPath)&quot; $Name($(ProjFile))"/>
+      </ExecuteBefore>
     </Other>
+    <CompileReasons Run="False" Build="False" Compile="False"/>
   </CompilerOptions>
   <Debugging>
     <Exceptions Count="3">

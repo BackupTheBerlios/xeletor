@@ -182,7 +182,7 @@ begin
   // test
   //TestIndex1;
   //for i:=0 to 1000 do Sleep(1000);
-  //TestFindDocs('//fileDesc');
+  //TestFindDocs('doc(darems/manuscriptsWithScans)//msIdentifier');
   //TestForAllGrandChildren('//fileDesc');
 
   Log(etInfo,'starting on port '+IntToStr(Port));
