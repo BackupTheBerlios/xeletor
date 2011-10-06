@@ -1,3 +1,8 @@
+{ Copyright (C) 2011  Mattias Gaertner  mattias@freepascal.org
+
+  Abstract:
+    Storage for multiple root directories.
+}
 unit xdbcentral;
 
 {$mode objfpc}{$H+}
@@ -5,7 +10,11 @@ unit xdbcentral;
 interface
 
 uses
-  Classes, SysUtils, FileProcs, xdbfiles, xdbutils;
+  Classes, SysUtils, FileProcs,
+  {$IFDEF Linux}
+  inotify,
+  {$ENDIF}
+  XFileWatch, xdbfiles, xdbutils;
 
 type
 
@@ -14,6 +23,7 @@ type
   TXDBCentral = class
   public
     Roots: TXDBRootDirectories;
+    Watch: TXDBFileSystemWatch;
     constructor Create;
     destructor Destroy; override;
     function FindDocument(Path: string;
@@ -33,11 +43,13 @@ implementation
 constructor TXDBCentral.Create;
 begin
   Roots:=TXDBRootDirectories.Create('');
+  Watch:=TXDBFileSystemWatch.Create;
 end;
 
 destructor TXDBCentral.Destroy;
 begin
   FreeAndNil(Roots);
+  FreeAndNil(Watch);
   inherited Destroy;
 end;
 

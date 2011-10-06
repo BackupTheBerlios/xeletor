@@ -29,7 +29,11 @@
 }
 {
   ToDo:
+    linux init.d script
+    HUP signal
     Update xml directory:
+      inotify
+      directory change notifier
       - remove deleted files and directories
       - register directory change handler (Linux: inotify)
     Use SingleWriteMultipleRead

@@ -3,7 +3,7 @@
   Abstract:
     Classes for storing xml files, directories, documents and nodes
 }
-unit xdbfiles;
+unit XDBFiles;
 
 {$mode objfpc}{$H+}
 

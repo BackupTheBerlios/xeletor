@@ -7,18 +7,24 @@
       <SearchPaths>
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
+      <Linking>
+        <Debugging>
+          <GenerateDebugInfo Value="True"/>
+          <DebugInfoType Value="dsAuto"/>
+        </Debugging>
+      </Linking>
       <Other>
         <CompilerPath Value="$(CompPath)"/>
       </Other>
     </CompilerOptions>
-    <Files Count="5">
+    <Files Count="8">
       <Item1>
         <Filename Value="xdbutils.pas"/>
-        <UnitName Value="xdbutils"/>
+        <UnitName Value="XDBUtils"/>
       </Item1>
       <Item2>
         <Filename Value="xdbfiles.pas"/>
-        <UnitName Value="xdbfiles"/>
+        <UnitName Value="XDBFiles"/>
       </Item2>
       <Item3>
         <Filename Value="xdbprocess.pas"/>
@@ -32,6 +38,19 @@
         <Filename Value="xdblog.pas"/>
         <UnitName Value="xdblog"/>
       </Item5>
+      <Item6>
+        <Filename Value="inotify.pas"/>
+        <AddToUsesPkgSection Value="False"/>
+        <UnitName Value="inotify"/>
+      </Item6>
+      <Item7>
+        <Filename Value="xfilewatch.pas"/>
+        <UnitName Value="XFileWatch"/>
+      </Item7>
+      <Item8>
+        <Filename Value="xdbcgi.pas"/>
+        <UnitName Value="xdbcgi"/>
+      </Item8>
     </Files>
     <Type Value="RunAndDesignTime"/>
     <RequiredPkgs Count="2">

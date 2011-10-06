@@ -3,7 +3,7 @@
   Abstract:
     Basic classes and functions.
 }
-unit xdbutils;
+unit XDBUtils;
 
 {$mode objfpc}{$H+}
 

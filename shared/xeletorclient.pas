@@ -7,7 +7,8 @@ unit XeletorClient;
 interface
 
 uses
-  xdbutils, xdbfiles, xdbprocess, xdbcentral, xdblog, LazarusPackageIntf;
+  XDBUtils, XDBFiles, xdbprocess, xdbcentral, xdblog, XFileWatch, xdbcgi, 
+  LazarusPackageIntf;
 
 implementation
 
