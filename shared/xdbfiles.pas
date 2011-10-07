@@ -1409,6 +1409,7 @@ var
 
 begin
   SplitNodePath(NodePath,DocPath,XPath);
+  //debugln(['TXDBDirectory.FindNodes DocPath=',DocPath,' XPath=',XPath]);
   Handler:=TFindNodeHandler.Create;
   try
     if not (xfnfDoNotCollect in Flags) then
@@ -1616,15 +1617,16 @@ begin
   Result:=false;
   ChildMightFit:=false;
   if (DocPath='') then exit;
-  if (Filename='') then begin
-    // the root directory always fits
-    Result:=(Directory=nil);
+  if (Filename='') and (Directory=nil) then begin
+    // root directory
+    Result:=false;
+    ChildMightFit:=true;
   end else begin
     GetFullFilename;
     Search(PChar(DocPath),PChar(FullFilename));
+    if Result then
+      ChildMightFit:=true;
   end;
-  if Result then
-    ChildMightFit:=true;
 end;
 
 end.

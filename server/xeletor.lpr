@@ -41,6 +41,8 @@
     Index:
       simple: node path + sort for attributes
     Multirequests
+    laz2_XMLRead:
+      improve error message: "Unmatching element end tag" show start tag
 }
 program xeletor;
 
@@ -186,7 +188,7 @@ begin
   // test
   //TestIndex1;
   //for i:=0 to 1000 do Sleep(1000);
-  //TestFindDocs('doc(darems/manuscriptsWithScans)//msIdentifier');
+  //TestFindDocs('doc(darems/manuscriptsWithoutScans/arab.MSS)//msIdentifier');
   //TestForAllGrandChildren('//fileDesc');
 
   Log(etInfo,'starting on port '+IntToStr(Port));
