@@ -862,7 +862,7 @@ begin
         Result:=Child;
         if NodeFound(Result) then exit;
       end else begin
-        Result:=Child.FindChildWithPath(Path,OnIterate);
+        Result:=Child.FindChildWithPath(Path+1,OnIterate);
         if Result<>nil then exit;
       end;
     end;

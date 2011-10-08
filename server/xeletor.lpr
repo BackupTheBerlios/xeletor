@@ -189,6 +189,9 @@ begin
   //TestIndex1;
   //for i:=0 to 1000 do Sleep(1000);
   //TestFindDocs('doc(darems/manuscriptsWithoutScans/arab.MSS)//msIdentifier');
+  //TestFindDocs('doc(daretexts)//(bibl|titleStmt)');
+  //TestFindDocs('doc(daretexts)//sourceDesc/biblStruct/monogr/respStmt');
+  //Halt;
   //TestForAllGrandChildren('//fileDesc');
 
   Log(etInfo,'starting on port '+IntToStr(Port));
