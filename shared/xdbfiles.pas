@@ -91,6 +91,8 @@ type
 
     // text
     function GetText: string;
+    function GetXML(Level: integer = 0; WithTags: boolean = true): string;
+    procedure WriteToStream(s: TStream; Level: integer = 0; WithTags: boolean = true);
 
     // neighborhood
     function GetLevel: integer; // # of parents, 0 = no parent
@@ -105,14 +107,15 @@ type
     function GetFullFilename: string; // GetFullFilename of document
     function GetEnumeratorAllChildren: TXDBNodeAllChildEnumerator; // all children including grand children
 
+    // ancestors
+    function FindParentWithName(Name: PChar;
+                            ExceptionOnNotFound: boolean = false): TXDBTreeNode;
+
     // search
     function FindChildWithPath(const Path: String;
            const OnIterate: TXDBNodeIterateEvent = nil): TXDBNode;
     function FindChildWithPath(Path: PChar;
            const OnIterate: TXDBNodeIterateEvent = nil): TXDBNode; // e.g. A/B/*/C//D, a /*/ means one arbitrary node, // means any number of nodes in between
-
-    // conversion
-    procedure WriteToStream(s: TStream; Level: integer = 0; WithTags: boolean = true);
 
     procedure CheckConsistency; virtual;
   end;
@@ -806,6 +809,24 @@ begin
   Result:=TXDBNodeAllChildEnumerator.Create(Self);
 end;
 
+function TXDBNode.FindParentWithName(Name: PChar; ExceptionOnNotFound: boolean
+  ): TXDBTreeNode;
+
+  procedure RaiseNotFound;
+  begin
+    raise Exception.Create('ancestor '+GetXMLName(Name)+' not found of '+GetNodePath);
+  end;
+
+begin
+  Result:=Parent;
+  while Result<>nil do begin
+    if CompareXMLNamesPtrs(Name,Pointer(Result.Name))=0 then exit;
+    Result:=Result.Parent;
+  end;
+  if ExceptionOnNotFound then
+    RaiseNotFound;
+end;
+
 function TXDBNode.FindChildWithPath(const Path: String;
   const OnIterate: TXDBNodeIterateEvent): TXDBNode;
 begin
@@ -1110,7 +1131,6 @@ function TXDBNode.GetText: string;
 var
   Child: TXDBNode;
   Cnt: Integer;
-  ss: TStringStream;
 begin
   Result:='';
   Cnt:=GetChildCount;
@@ -1122,9 +1142,16 @@ begin
       exit;
     end;
   end;
+  Result:=GetXML(0,false);
+end;
+
+function TXDBNode.GetXML(Level: integer; WithTags: boolean): string;
+var
+  ss: TStringStream;
+begin
   ss:=TStringStream.Create('');
   try
-    WriteToStream(ss,0,false);
+    WriteToStream(ss,Level,WithTags);
     Result:=ss.DataString;
   finally
     ss.Free;

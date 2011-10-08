@@ -5,10 +5,12 @@ unit xdbcgi;
 interface
 
 uses
-  Classes, SysUtils, HTTPDefs;
+  Classes, SysUtils, HTTPDefs, LazFileUtils;
 
 function QueryParams: TStrings;
 function GetQueryParam(const Name: string): string;
+
+function GetRightFilePath(Filename: string; Index: integer = 1): string;
 
 implementation
 
@@ -45,6 +47,19 @@ end;
 function GetQueryParam(const Name: string): string;
 begin
   Result:=QueryParams.Values[Name];
+end;
+
+function GetRightFilePath(Filename: string; Index: integer = 1): string;
+{ returns the Index-th directory at the end, the last part aka file name is Index 1
+  for example: /docpath/file
+    file is Index 1, docpath is Index 2
+}
+begin
+  while Index>1 do begin
+    Filename:=ChompPathDelim(ExtractFilePath(Filename));
+    dec(Index);
+  end;
+  Result:=ExtractFileName(Filename);
 end;
 
 finalization
