@@ -54,7 +54,7 @@ uses
   {$ENDIF}
   Classes, SysUtils, CustApp, AVL_Tree, laz2_XMLRead, laz2_DOM, CodeToolManager,
   FileProcs, MTProcs, xdbhttpserver, xdbfphttpserver, xdbutils, xdbfiles,
-  xdblog, xdbcentral;
+  xdblog, xdbcentral, XMLRead;
 
 const
   Version = '0.4';
@@ -100,6 +100,7 @@ type
       var AResponse: TFPHTTPConnectionResponse);
     // Tests
     procedure TestIndex1;
+    procedure TestRead1;
     procedure TestFindDocs(const NodePath: string);
     procedure TestForAllGrandChildren(const NodePath: string);
   protected
@@ -187,6 +188,7 @@ begin
 
   // test
   //TestIndex1;
+  //TestRead1;
   //for i:=0 to 1000 do Sleep(1000);
   //TestFindDocs('doc(darems/manuscriptsWithoutScans/arab.MSS)//msIdentifier');
   //TestFindDocs('doc(daretexts)//(bibl|titleStmt)');
@@ -666,6 +668,23 @@ begin
     XPath.Free;
     EndReading;
   end;
+end;
+
+procedure TXeletorApplication.TestRead1;
+var
+  Filename: String;
+  XDoc: TXDBDocument;
+  XMLDoc: TXMLDocument;
+begin
+  debugln(['TXeletorApplication.TestRead1 START']);
+  Filename:='../../dare/fulltexts/production/AverroesJuniorArab.xml';
+  laz2_XMLRead.ReadXMLFile(XMLDoc,Filename);
+  XDoc:=TXDBDocument.Create(ExtractFileName(Filename));
+  XDoc.XMLDoc:=XMLDoc;
+  XMLDoc:=nil;
+  XDoc.CreateTreeFromXML;
+  writeln(XDoc.Root.GetXML);
+  debugln(['TXeletorApplication.TestRead1 END']);
 end;
 
 procedure TXeletorApplication.TestFindDocs(const NodePath: string);

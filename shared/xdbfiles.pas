@@ -294,7 +294,7 @@ implementation
 
 procedure CreateXDBTree(XMLDoc: TXMLDocument; out Root: TXDBRootNode;
   CombineStrings: boolean);
-{ $DEFINE VerboseCreateDBNodes}
+{off $DEFINE VerboseCreateDBNodes}
 var
   AllStrings: TXDBStringTree;
 
@@ -327,7 +327,7 @@ var
         // element
         Element:=TDOMElement(DOMChild);
         {$IFDEF VerboseCreateDBNodes}
-        debugln([GetIndentStr(XDBNode.GetLevel*2),'CreateNodes Element=',Element.NodeName,' NodeValue="',dbgstr(Element.NodeValue),'"']);
+        debugln([Space(XDBNode.GetLevel*2),'CreateNodes Element=',Element.NodeName,':',DbgSName(DOMChild),' NodeValue="',dbgstr(Element.NodeValue),'"']);
         {$ENDIF}
         XDBElem:=TXDBTreeNode.Create;
         XDBAttrNode:=XDBElem;
@@ -343,13 +343,13 @@ var
         if AllStrings<>nil then AllStrings.ReplaceString(XDBText.Name);
         XDBText.Value:=DOMText.NodeValue;
         {$IFDEF VerboseCreateDBNodes}
-        debugln([GetIndentStr(XDBNode.GetLevel*2),'CreateNodes Leaf=',XDBText.Name,' Text="',dbgstr(XDBText.Value),'"']);
+        debugln([Space(XDBNode.GetLevel*2),'CreateNodes Leaf=',XDBText.Name,' Text="',dbgstr(XDBText.Value),'"']);
         {$ENDIF}
         XDBChild:=XDBText;
       end else begin
         // write unsupported nodes
         {$IFDEF VerboseCreateDBNodes}
-        debugln([GetIndentStr(XDBNode.GetLevel*2),'CreateNodes skipped ',DbgSName(DOMChild)]);
+        debugln([Space(XDBNode.GetLevel*2),'CreateNodes skipped ',DbgSName(DOMChild)]);
         {$ENDIF}
         continue;
       end;
