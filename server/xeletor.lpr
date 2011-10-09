@@ -53,8 +53,8 @@ uses
   cthreads, cmem,
   {$ENDIF}
   Classes, SysUtils, CustApp, AVL_Tree, laz2_XMLRead, laz2_DOM, CodeToolManager,
-  FileProcs, MTProcs, xdbhttpserver, xdbfphttpserver, xdbutils, xdbfiles,
-  xdblog, xdbcentral, XMLRead;
+  FileProcs, MTProcs, xdbhttpserver, xdbfphttpserver, xdbHTTPDefs,
+  xdbutils, xdbfiles, xdblog, xdbcentral, XMLRead;
 
 const
   Version = '0.4';
@@ -193,6 +193,7 @@ begin
   //TestFindDocs('doc(darems/manuscriptsWithoutScans/arab.MSS)//msIdentifier');
   //TestFindDocs('doc(daretexts)//(bibl|titleStmt)');
   //TestFindDocs('doc(daretexts)//sourceDesc/biblStruct/monogr/respStmt');
+  //TestFindDocs('doc(daretexts)//titleStmt[@xml:id=''FT1'']');
   //Halt;
   //TestForAllGrandChildren('//fileDesc');
 
@@ -307,10 +308,10 @@ begin
 
     +'  <li>doc:dbname/filepath<br>'#13#10
     +'Returns the xml document specified by database name and path.<br>'#13#10
-    +'Example: doc:NameOfYourDB/dir/test.xml'#13#10
+    +'Example: doc?NameOfYourDB/dir/test.xml'#13#10
     +'  </li>'#13#10
 
-    +'  <li>listdocs:DocPath'#13#10
+    +'  <li>listdocs?DocPath'#13#10
     +'Returns an xml document with the list of files matching the DocPath.<br>'#13#10
     +'DocPath:<br>'#13#10
     +'<ul>'#13#10
@@ -322,15 +323,15 @@ begin
     +'  <li>\ = treat next UTF-8 character as normal character</li>'#13#10
     +'  <li>the first / can be omitted</li>'#13#10
     +'</ul>'#13#10
-    +'Example: listdocs:**/*.xml  to list all xml files'#13#10
+    +'Example: listdocs?**/*.xml  to list all xml files'#13#10
     +'  </li>'#13#10
 
-    +'  <li>listdocsext:DocPath'#13#10
+    +'  <li>listdocsext?DocPath'#13#10
     +'As listdocs but with extra attributes like fileage.<br>'#13#10
     +'Example: listdocsext:db1/*.xml'#13#10
     +'  </li>'#13#10
 
-    +'  <li>finddocs:doc(DocPath)XPath'#13#10
+    +'  <li>finddocs?doc(DocPath)XPath'#13#10
     +'Returns an xml document with all files matching the path.<br>'#13#10
     +'The XPath of the first matching node is returned as well.<br>'#13#10
     +'Optionally the path can be prepended with a doc(DocPath) specifying a'
@@ -338,7 +339,7 @@ begin
     +'Example: finddocs:doc(db1)//graphics'#13#10
     +'  </li>'#13#10
 
-    +'  <li>findnodes:doc(DocPath)XPath'#13#10
+    +'  <li>findnodes?doc(DocPath)XPath'#13#10
     +'Returns an xml document with all nodes matching the path.<br>'#13#10
     +'Optionally the path can be prepended with a doc(DocPath) specifying a'
     +' DocPath for the directories/files.<br>'#13#10
@@ -368,6 +369,7 @@ var
   p: SizeInt;
   Scheme: String;
 begin
+  //debugln(['TXeletorApplication.ServerRequest Command=',ARequest.Command,' CommandLine=',ARequest.CommandLine,' URI=',ARequest.URI,' QueryString=',ARequest.QueryString]);
   URL:=ARequest.Url;
   ClientLog(etInfo,ARequest,['URL: '+URL]);
 
@@ -379,9 +381,10 @@ begin
   if URL[1]='/' then System.Delete(URL,1,1);
 
   // check scheme
-  p:=Pos(':',URL);
+  p:=Pos('?',URL);
   Scheme:=lowercase(copy(URL,1,p-1));
   URL:=copy(URL,p+1,length(URL));
+  URL:=HTTPDecode(URL);
   if Scheme='doc' then begin
     HandleRequestDoc(URL,ARequest,AResponse);
   end else if Scheme='listdocs' then begin

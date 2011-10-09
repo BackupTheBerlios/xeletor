@@ -86,8 +86,10 @@ type
                                ExceptionOnNotFound: boolean = false): TXDBNode;
 
     // attributes
-    function IndexOfAttribute(const {%H-}AttributeName: string): integer; virtual;
-    function GetAttribute(const {%H-}AttributeName: string): string; virtual;
+    function IndexOfAttribute(const {%H-}AttributeName: string): integer;
+    function IndexOfAttributeP(const {%H-}AttributeName: PChar): integer; virtual;
+    function GetAttribute(const {%H-}AttributeName: string): string;
+    function GetAttributeP(const {%H-}AttributeName: PChar): string; virtual;
 
     // text
     function GetText: string;
@@ -116,6 +118,7 @@ type
            const OnIterate: TXDBNodeIterateEvent = nil): TXDBNode;
     function FindChildWithPath(Path: PChar;
            const OnIterate: TXDBNodeIterateEvent = nil): TXDBNode; // e.g. A/B/*/C//D, a /*/ means one arbitrary node, // means any number of nodes in between
+    function CheckSimpleExpr(Expr: PChar): boolean; // e.g. [@xml:id='Value']
 
     procedure CheckConsistency; virtual;
   end;
@@ -137,8 +140,8 @@ type
     destructor Destroy; override;
     function GetName: string; override;
     function CompareName(aName: PChar): integer; override;
-    function IndexOfAttribute(const AttributeName: string): integer; override;
-    function GetAttribute(const AttributeName: string): string; override;
+    function IndexOfAttributeP(const AttributeName: PChar): integer; override;
+    function GetAttributeP(const AttributeName: PChar): string; override;
   end;
 
   { TXDBLeafNode }
@@ -835,12 +838,12 @@ end;
 
 function TXDBNode.FindChildWithPath(Path: PChar;
   const OnIterate: TXDBNodeIterateEvent): TXDBNode;
-{ A/B/*/C//D
+{ A/B/*/C//D[@xml:id='value']
 }
 
   procedure RaiseError;
   begin
-    raise Exception.Create('TXDBNode.FindChildrenWithPath: invalid syntax: '+Path);
+    raise Exception.Create('TXDBNode.FindChildWithPath: invalid syntax: '+Path);
   end;
 
   function NodeFound(var Node: TXDBNode): boolean;
@@ -873,7 +876,7 @@ begin
     // search node with name
     NameStart:=Path;
     inc(Path,l);
-    if not (Path^ in [#0,'/']) then
+    if not (Path^ in [#0,'/','[']) then
       RaiseError;
     for i:=0 to GetChildCount-1 do begin
       Child:=GetChild(i);
@@ -882,6 +885,11 @@ begin
       if Path^=#0 then begin
         Result:=Child;
         if NodeFound(Result) then exit;
+      end else if Path^='[' then begin
+        if Child.CheckSimpleExpr(Path) then begin
+          Result:=Child;
+          if NodeFound(Result) then exit;
+        end;
       end else begin
         Result:=Child.FindChildWithPath(Path+1,OnIterate);
         if Result<>nil then exit;
@@ -934,10 +942,76 @@ begin
         Child:=Child.GetNext;
       end;
     end;
+  end else if Path^='[' then begin
+    if CheckSimpleExpr(Path) then begin
+      Result:=Self;
+      if NodeFound(Result) then exit;
+    end;
   end else begin
     // invalid syntax
     RaiseError;
   end;
+end;
+
+function TXDBNode.CheckSimpleExpr(Expr: PChar): boolean;
+// for example [@xml:id='value'] [@sameAs]
+
+  procedure RaiseInvalidSyntax;
+  begin
+    raise Exception.Create('TXDBNode.CheckSimpleExpr invalid syntax '+dbgstr(Expr));
+  end;
+
+  procedure RaiseUnexpectedChar(Expected: char);
+  begin
+    raise Exception.Create('TXDBNode.CheckSimpleExpr: expected '+Expected+', but found '+dbgstr(Expr));
+  end;
+
+var
+  i: Integer;
+  StartPos: PChar;
+  AttrNode: TXDBNodeWithAttributes;
+  Attr: PXDBAttribute;
+  EndPos: PChar;
+  len: PtrInt;
+begin
+  Result:=false;
+  //debugln([Space(GetLevel*2),'TXDBNode.CheckSimpleExpr Current=',GetPath,' Expr=',Expr]);
+  if Expr^<>'[' then
+    RaiseUnexpectedChar('[');
+  inc(Expr);
+  if Expr^<>'@' then
+    RaiseUnexpectedChar('@');
+  if not (Self is TXDBNodeWithAttributes) then exit;
+  AttrNode:=TXDBNodeWithAttributes(Self);
+  inc(Expr);
+  i:=IndexOfAttribute(Expr);
+  //debugln([Space(GetLevel*2),'TXDBNode.CheckSimpleExpr  ',i,' ',GetXMLAttrName(Expr)]);
+  if i<0 then exit;
+  inc(Expr,GetXMLAttriNameLength(Expr));
+  if Expr^<>'=' then
+    RaiseUnexpectedChar('=');
+  inc(Expr);
+  if Expr^<>'''' then
+    RaiseUnexpectedChar('''');
+  inc(Expr);
+  StartPos:=Expr;
+  while not (Expr^ in ['''',#0]) do inc(Expr);
+  if Expr^<>'''' then
+    RaiseUnexpectedChar('''');
+  EndPos:=Expr;
+  Attr:=@AttrNode.Attributes[i];
+  len:=EndPos-StartPos;
+  //debugln([Space(GetLevel*2),'TXDBNode.CheckSimpleExpr  Attr=',GetXMLAttrName(Expr),' Value=',Attr^.Value]);
+  if (length(Attr^.Value)<>len)
+  or ((len>0) and (not CompareMem(StartPos,Pointer(Attr^.Value),len))) then
+    exit; // value does not fit
+  Result:=true;
+  inc(Expr);
+  if Expr^<>']' then
+    RaiseUnexpectedChar(']');
+  inc(Expr);
+  if Expr^<>#0 then
+    RaiseUnexpectedChar(']');
 end;
 
 procedure TXDBNode.WriteToStream(s: TStream; Level: integer; WithTags: boolean);
@@ -1119,10 +1193,24 @@ end;
 
 function TXDBNode.IndexOfAttribute(const AttributeName: string): integer;
 begin
+  if AttributeName='' then exit(-1);
+  Result:=IndexOfAttributeP(PChar(AttributeName));
+end;
+
+function TXDBNode.IndexOfAttributeP(const AttributeName: PChar): integer;
+begin
   Result:=-1;
 end;
 
 function TXDBNode.GetAttribute(const AttributeName: string): string;
+begin
+  if AttributeName='' then
+    Result:=''
+  else
+    Result:=GetAttributeP(PChar(AttributeName));
+end;
+
+function TXDBNode.GetAttributeP(const AttributeName: PChar): string;
 begin
   Result:='';
 end;
@@ -1222,20 +1310,21 @@ begin
   Result:=CompareXMLNames(aName,PChar(Name));
 end;
 
-function TXDBNodeWithAttributes.IndexOfAttribute(const AttributeName: string
+function TXDBNodeWithAttributes.IndexOfAttributeP(const AttributeName: PChar
   ): integer;
 begin
   Result:=AttributeCount-1;
-  while (Result>=0) and (CompareStr(AttributeName,Attributes[Result].Name)<>0) do
+  while (Result>=0)
+  and (CompareXMLAttrNames(AttributeName,Pointer(Attributes[Result].Name))<>0) do
     dec(Result);
 end;
 
-function TXDBNodeWithAttributes.GetAttribute(const AttributeName: string
+function TXDBNodeWithAttributes.GetAttributeP(const AttributeName: PChar
   ): string;
 var
   i: Integer;
 begin
-  i:=IndexOfAttribute(AttributeName);
+  i:=IndexOfAttributeP(AttributeName);
   if i>=0 then
     Result:=Attributes[i].Value
   else

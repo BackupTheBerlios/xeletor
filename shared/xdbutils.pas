@@ -54,6 +54,10 @@ function GetXMLNameLength(Name: PChar): integer;
 function GetXMLName(Name: PChar): string;
 function CompareXMLNames(Name1, Name2: PChar): integer;
 function CompareXMLNamesPtrs(Name1, Name2: Pointer): integer; inline;
+function GetXMLAttriNameLength(Name: PChar): integer;
+function GetXMLAttrName(Name: PChar): string;
+function CompareXMLAttrNames(Name1, Name2: PChar): integer;
+function CompareXMLAttrValue(Value1, Value2: PChar): integer;
 function StrToXMLValue(const s: string): string;
 
 // environment
@@ -206,6 +210,108 @@ begin
   Result:=CompareXMLNames(PChar(Name1),PChar(Name2));
 end;
 
+function GetXMLAttriNameLength(Name: PChar): integer;
+begin
+  Result:=0;
+  if (Name=nil) or (not IsXMLNameStartChar[Name^]) then exit;
+  inc(Name);
+  inc(Result);
+  while IsXMLNameChar[Name^] do begin
+    inc(Name);
+    inc(Result);
+  end;
+  if Name^<>':' then exit;
+  inc(Result);
+  inc(Name);
+  while IsXMLNameChar[Name^] do begin
+    inc(Name);
+    inc(Result);
+  end;
+end;
+
+function GetXMLAttrName(Name: PChar): string;
+begin
+  SetLength(Result,GetXMLAttriNameLength(Name));
+  if Result='' then exit;
+  Move(Name^,Result[1],length(Result));
+end;
+
+function CompareXMLAttrNames(Name1, Name2: PChar): integer;
+var
+  ColonFound: Boolean;
+begin
+  if (Name1<>nil) then begin
+    if (Name2<>nil) then begin
+      ColonFound:=false;
+      while (Name1^=Name2^) do begin
+        if (IsXMLNameChar[Name1^]) then begin
+          inc(Name1);
+          inc(Name2);
+        end else if (Name1^=':') and not ColonFound then begin
+          ColonFound:=true;
+          inc(Name1);
+          inc(Name2);
+        end else begin
+          Result:=0; // for example  'aaA;' 'aAa;'
+          exit;
+        end;
+      end;
+      if (IsXMLNameChar[Name1^]) then begin
+        if (IsXMLNameChar[Name2^]) then begin
+          if Name1^>Name2^ then
+            Result:=-1 // for example  'aab' 'aaa'
+          else
+            Result:=1; // for example  'aaa' 'aab'
+        end else begin
+          Result:=-1; // for example  'aaa' 'aa;'
+        end;
+      end else begin
+        if (IsXMLNameChar[Name2^]) then
+          Result:=1 // for example  'aa;' 'aaa'
+        else
+          Result:=0; // for example  'aa;' 'aa,'
+      end;
+    end else begin
+      Result:=-1; // for example  'aaa' nil
+    end;
+  end else begin
+    if (Name2<>nil) then begin
+      Result:=1; // for example  nil 'bbb'
+    end else begin
+      Result:=0; // for example  nil nil
+    end;
+  end;
+end;
+
+function CompareXMLAttrValue(Value1, Value2: PChar): integer;
+begin
+  if (Value1<>nil) then begin
+    if (Value2<>nil) then begin
+      while (Value1^=Value2^) do begin
+        if (Value1^<>#0) then begin
+          inc(Value1);
+          inc(Value2);
+        end else begin
+          Result:=0; // for example  'aaA;' 'aAa;'
+          exit;
+        end;
+      end;
+      if Value1^>Value2^ then
+        Result:=-1 // for example  'aab' 'aaa'
+      else
+        Result:=1; // for example  'aaa' 'aab'
+    end else begin
+      Result:=-1; // for example  'aaa' nil
+    end;
+  end else begin
+    if (Value2<>nil) then begin
+      Result:=1; // for example  nil 'bbb'
+    end else begin
+      Result:=0; // for example  nil nil
+    end;
+  end;
+end;
+
 function StrToXMLValue(const s: string): string;
 var
   p: PChar;
@@ -229,7 +335,7 @@ begin
       end;
       b:=p-PChar(Result);
       Result:=copy(Result,1,b-1)+h+copy(Result,b+1,length(Result));
-      p:=@Result[b]+length(h);
+      p:=PChar(Result)+b+length(h);
     end else begin
       inc(p);
     end;
