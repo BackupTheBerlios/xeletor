@@ -6,9 +6,21 @@ uses
   {$IFDEF UNIX}
   cthreads,
   {$ENDIF}
-  Classes, sysutils, Linux, syscall;
+  Classes, sysutils, LazFileUtils, Linux, syscall, XFileWatch;
 
+var
+  Watcher: TXDBFileSystemWatch;
+  Dir: String;
 begin
-  syscall_nr_inotify_init;
+  Dir:=TrimAndExpandDirectory(ParamStr(1));
+  if not DirectoryExistsUTF8(Dir) then
+    raise Exception.Create('directory not found: '+Dir);
+  Watcher:=TXDBFileSystemWatch.Create;
+  try
+    Watcher.WatchDirectory(Dir);
+
+  finally
+    Watcher.Free;
+  end;
 end.
 
