@@ -1026,14 +1026,7 @@ end;
 
 procedure TXDBNode.WriteToStream(s: TStream; Level: integer; WithTags: boolean);
 
-  procedure w(const Value: string);
-  begin
-    //debugln(['TXDBNode.WriteToStream.w Value="',dbgstr(Value),'"']);
-    if Value='' then exit;
-    s.Write(Value[1],length(Value));
-  end;
-
-  procedure WriteAttrValue(const Value: string);
+  procedure w(const Value: string; Encode: boolean = false);
   var
     p: PChar;
     StartPos: PChar;
@@ -1054,22 +1047,33 @@ procedure TXDBNode.WriteToStream(s: TStream; Level: integer; WithTags: boolean);
     end;
 
   begin
-    w('"');
-    if Value<>'' then begin
-      p:=PChar(Value);
-      StartPos:=p;
-      while p^<>#0 do begin
-        case p^ of
-        '&': WriteSpecialChar('&amp;');
-        '<': WriteSpecialChar('&lt;');
-        '>': WriteSpecialChar('&gt;');
-        '''': WriteSpecialChar('&apos;');
-        '"': WriteSpecialChar('&quot;');
-        else inc(p);
+    //debugln(['TXDBNode.WriteToStream.w Value="',dbgstr(Value),'"']);
+    if Value='' then exit;
+    if not Encode then
+      s.Write(Value[1],length(Value))
+    else begin
+      if Value<>'' then begin
+        p:=PChar(Value);
+        StartPos:=p;
+        while p^<>#0 do begin
+          case p^ of
+          '&': WriteSpecialChar('&amp;');
+          '<': WriteSpecialChar('&lt;');
+          '>': WriteSpecialChar('&gt;');
+          '''': WriteSpecialChar('&apos;');
+          '"': WriteSpecialChar('&quot;');
+          else inc(p);
+          end;
         end;
+        Flush;
       end;
-      Flush;
     end;
+  end;
+
+  procedure WriteAttrValue(const Value: string);
+  begin
+    w('"');
+    w(Value,true);
     w('"');
   end;
 
@@ -1090,7 +1094,7 @@ procedure TXDBNode.WriteToStream(s: TStream; Level: integer; WithTags: boolean);
         // text
         LeafNode:=TXDBLeafNode(CurNode);
         if LeafNode.Value<>'' then
-          w(LeafNode.Value);
+          w(LeafNode.Value,true);
       end else begin
         w('<');
         w(AttrNode.Name);
