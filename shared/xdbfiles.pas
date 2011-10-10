@@ -954,7 +954,7 @@ begin
 end;
 
 function TXDBNode.CheckSimpleExpr(Expr: PChar): boolean;
-// for example [@xml:id='value'] [@sameAs]
+// for example [@xml:id='value'] [@sameAs] [3]
 
   procedure RaiseInvalidSyntax;
   begin
@@ -963,7 +963,7 @@ function TXDBNode.CheckSimpleExpr(Expr: PChar): boolean;
 
   procedure RaiseUnexpectedChar(Expected: char);
   begin
-    raise Exception.Create('TXDBNode.CheckSimpleExpr: expected '+Expected+', but found '+dbgstr(Expr));
+    raise Exception.Create('TXDBNode.CheckSimpleExpr: expected '+Expected+', but found "'+dbgstr(Expr)+'"');
   end;
 
 var
@@ -979,34 +979,44 @@ begin
   if Expr^<>'[' then
     RaiseUnexpectedChar('[');
   inc(Expr);
-  if Expr^<>'@' then
+  if Expr^='@' then begin
+    if not (Self is TXDBNodeWithAttributes) then exit;
+    AttrNode:=TXDBNodeWithAttributes(Self);
+    inc(Expr);
+    i:=IndexOfAttribute(Expr);
+    //debugln([Space(GetLevel*2),'TXDBNode.CheckSimpleExpr  ',i,' ',GetXMLAttrName(Expr)]);
+    if i<0 then exit;
+    inc(Expr,GetXMLAttriNameLength(Expr));
+    if Expr^<>'=' then
+      RaiseUnexpectedChar('=');
+    inc(Expr);
+    if Expr^<>'''' then
+      RaiseUnexpectedChar('''');
+    inc(Expr);
+    StartPos:=Expr;
+    while not (Expr^ in ['''',#0]) do inc(Expr);
+    if Expr^<>'''' then
+      RaiseUnexpectedChar('''');
+    EndPos:=Expr;
+    inc(Expr);
+    Attr:=@AttrNode.Attributes[i];
+    len:=EndPos-StartPos;
+    //debugln([Space(GetLevel*2),'TXDBNode.CheckSimpleExpr  Attr=',GetXMLAttrName(Expr),' Value=',Attr^.Value]);
+    if (length(Attr^.Value)<>len)
+    or ((len>0) and (not CompareMem(StartPos,Pointer(Attr^.Value),len))) then
+      exit; // value does not fit
+    Result:=true;
+  end else if Expr^ in ['0'..'9'] then begin
+    i:=0;
+    repeat
+      i:=i*10+ord(Expr^)-ord('0');
+      if i>10000000 then
+        RaiseUnexpectedChar(']');
+      inc(Expr);
+    until not (Expr^ in ['0'..'9']);
+    Result:=i=IndexInParent;
+  end else
     RaiseUnexpectedChar('@');
-  if not (Self is TXDBNodeWithAttributes) then exit;
-  AttrNode:=TXDBNodeWithAttributes(Self);
-  inc(Expr);
-  i:=IndexOfAttribute(Expr);
-  //debugln([Space(GetLevel*2),'TXDBNode.CheckSimpleExpr  ',i,' ',GetXMLAttrName(Expr)]);
-  if i<0 then exit;
-  inc(Expr,GetXMLAttriNameLength(Expr));
-  if Expr^<>'=' then
-    RaiseUnexpectedChar('=');
-  inc(Expr);
-  if Expr^<>'''' then
-    RaiseUnexpectedChar('''');
-  inc(Expr);
-  StartPos:=Expr;
-  while not (Expr^ in ['''',#0]) do inc(Expr);
-  if Expr^<>'''' then
-    RaiseUnexpectedChar('''');
-  EndPos:=Expr;
-  Attr:=@AttrNode.Attributes[i];
-  len:=EndPos-StartPos;
-  //debugln([Space(GetLevel*2),'TXDBNode.CheckSimpleExpr  Attr=',GetXMLAttrName(Expr),' Value=',Attr^.Value]);
-  if (length(Attr^.Value)<>len)
-  or ((len>0) and (not CompareMem(StartPos,Pointer(Attr^.Value),len))) then
-    exit; // value does not fit
-  Result:=true;
-  inc(Expr);
   if Expr^<>']' then
     RaiseUnexpectedChar(']');
   inc(Expr);

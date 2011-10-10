@@ -43,6 +43,16 @@ type
     destructor Destroy; override;
   end;
 
+  { TXDBStringToStringTree }
+
+  TXDBStringToStringTree = class(TStringToStringTree)
+  protected
+    fNodeManager: TAVLTreeNodeMemManager;
+  public
+    constructor Create(TheCaseSensitive: boolean);
+    destructor Destroy; override;
+  end;
+
 // string operations
 function UTF8FindNearestCharStart(UTF8Str: PChar; Len: integer;
   BytePos: integer): integer;
@@ -377,6 +387,21 @@ end;
 function FileAgeToXDBStr(aFileAge: longint): string;
 begin
   Result:=DateTimeToXDBStr(FileDateToDateTime(aFileAge));
+end;
+
+{ TXDBStringToStringTree }
+
+constructor TXDBStringToStringTree.Create(TheCaseSensitive: boolean);
+begin
+  inherited Create(TheCaseSensitive);
+  fNodeManager:=TXDBAVLTreeNodeMemManager.Create;
+  Tree.SetNodeManager(fNodeManager);
+end;
+
+destructor TXDBStringToStringTree.Destroy;
+begin
+  inherited Destroy;
+  FreeAndNil(fNodeManager);
 end;
 
 { TXDBStringTree }

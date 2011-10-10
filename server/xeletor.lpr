@@ -101,7 +101,7 @@ type
     // Tests
     procedure TestIndex1;
     procedure TestRead1;
-    procedure TestFindDocs(const NodePath: string);
+    procedure TestFindNodes(const NodePath: string);
     procedure TestForAllGrandChildren(const NodePath: string);
   protected
     // parameters, configs
@@ -190,10 +190,11 @@ begin
   //TestIndex1;
   //TestRead1;
   //for i:=0 to 1000 do Sleep(1000);
-  //TestFindDocs('doc(darems/manuscriptsWithoutScans/arab.MSS)//msIdentifier');
-  //TestFindDocs('doc(daretexts)//(bibl|titleStmt)');
-  //TestFindDocs('doc(daretexts)//sourceDesc/biblStruct/monogr/respStmt');
-  //TestFindDocs('doc(daretexts)//titleStmt[@xml:id=''FT1'']');
+  //TestFindNodes('doc(darems/manuscriptsWithoutScans/arab.MSS)//msIdentifier');
+  //TestFindNodes('doc(daretexts)//(bibl|titleStmt)');
+  //TestFindNodes('doc(daretexts)//sourceDesc/biblStruct/monogr/respStmt');
+  //TestFindNodes('doc(daretexts)//titleStmt[@xml:id=''FT1'']');
+  //TestFindNodes('doc(darems/manuscriptsWithScans/BOOK-DARE-M-VA-VAT-BAV-Urb.Lat.221/structure.xml)TEI/facsimile/surface[352]');
   //Halt;
   //TestForAllGrandChildren('//fileDesc');
 
@@ -563,7 +564,7 @@ begin
     end;
     AResponse.ContentType:='text/xml';
     AResponse.ContentLength:=ms.Size;
-    ClientLog(etInfo,ARequest,['Serving listing: "',Path,'". MimeType: ',AResponse.ContentType,' Length=',AResponse.ContentLength]);
+    ClientLog(etInfo,ARequest,['Serving nodes: "',Path,'". MimeType: ',AResponse.ContentType,' Length=',AResponse.ContentLength]);
     AResponse.ContentStream:=ms;
     AResponse.SendContent;
     AResponse.ContentStream:=Nil;
@@ -631,7 +632,7 @@ begin
     end;
     AResponse.ContentType:='text/xml';
     AResponse.ContentLength:=ms.Size;
-    ClientLog(etInfo,ARequest,['Serving listing: "',Path,'". MimeType: ',AResponse.ContentType,' Length=',AResponse.ContentLength]);
+    ClientLog(etInfo,ARequest,['Serving nodes: "',Path,'". MimeType: ',AResponse.ContentType,' Length=',AResponse.ContentLength]);
     AResponse.ContentStream:=ms;
     AResponse.SendContent;
     AResponse.ContentStream:=Nil;
@@ -690,7 +691,7 @@ begin
   debugln(['TXeletorApplication.TestRead1 END']);
 end;
 
-procedure TXeletorApplication.TestFindDocs(const NodePath: string);
+procedure TXeletorApplication.TestFindNodes(const NodePath: string);
 var
   Nodes: TFPList;
   i: Integer;

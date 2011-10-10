@@ -11,6 +11,7 @@ function QueryParams: TStrings;
 function GetQueryParam(const Name: string): string;
 
 function GetRightFilePath(Filename: string; Index: integer = 1): string;
+function ChompFilePaths(const Filename: string; DirCount: integer = 1): string;
 
 implementation
 
@@ -55,11 +56,16 @@ function GetRightFilePath(Filename: string; Index: integer = 1): string;
     file is Index 1, docpath is Index 2
 }
 begin
-  while Index>1 do begin
-    Filename:=ChompPathDelim(ExtractFilePath(Filename));
-    dec(Index);
+  Result:=ExtractFileName(ChompFilePaths(Filename,Index-1));
+end;
+
+function ChompFilePaths(const Filename: string; DirCount: integer): string;
+begin
+  Result:=Filename;
+  while DirCount>=1 do begin
+    Result:=ChompPathDelim(ExtractFilePath(Result));
+    dec(DirCount);
   end;
-  Result:=ExtractFileName(Filename);
 end;
 
 finalization
